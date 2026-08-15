@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GestureForge AI{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div id="app-container">
+        <!-- LEFT SIDEBAR -->
+        <aside id="sidebar">
+            <div>
+                <div class="brand">
+                    <span>⚡ GestureForge AI</span>
+                </div>
+                <nav>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="{{ url_for('overview.overview') }}">🏠 Overview</a></li>
+                        <li class="nav-item"><a href="{{ url_for('mouse.mouse') }}">🖱️ Air Mouse</a></li>
+                        <li class="nav-item"><a href="{{ url_for('drawing.drawing') }}">🎨 Air Drawing</a></li>
+                        <li class="nav-item"><a href="{{ url_for('alphabet.alphabet') }}">🔤 Sign Alphabet</a></li>
+                        <li class="nav-item"><a href="{{ url_for('recognition.recognition') }}">🔤 Sign Recognition</a></li>
+                        <li class="nav-item"><a href="{{ url_for('sentence.sentence') }}">📝 Sentence Builder</a></li>
+                        <li class="nav-item"><a href="{{ url_for('translation.translation') }}">🌐 Translation</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="sidebar-controls">
+                <div class="control-group">
+                    <span class="control-label">Camera Control</span>
+                    <button id="btn-toggle-camera" class="btn-toggle">○ CAMERA OFF</button>
+                </div>
+                <div class="control-group">
+                    <span class="control-label">Air Gesture Control</span>
+                    <button id="btn-toggle-gesture" class="btn-toggle">🛑 AIR GESTURE OFF</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN WRAPPER -->
+        <div id="main-wrapper">
+            <header id="header">
+                <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <!-- DWELL PROGRESS INDICATOR -->
+                    <div id="dwell-container" style="display: flex; align-items: center; gap: 0.5rem; opacity: 0; transition: opacity 0.2s;">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-blue);">DWELL:</span>
+                        <div style="width: 100px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">
+                            <div id="dwell-progress-bar" style="width: 0%; height: 100%; background: var(--accent-blue); transition: width 0.05s linear;"></div>
+                        </div>
+                        <span id="dwell-progress-text" style="font-size: 0.75rem; width: 35px;">0%</span>
+                    </div>
+
+                    <span id="status-fps" class="badge">0 FPS</span>
+                    <span id="status-hand" class="badge badge-danger">NO HAND</span>
+                    <span id="status-gesture" class="badge">NONE</span>
+                    <span id="status-interaction" class="badge" style="background: rgba(56, 189, 248, 0.2); color: var(--accent-blue);">IDLE</span>
+                </div>
+            </header>
+
+            <main id="content-area">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/global/navigation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/state_client.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/gesture_client.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,19 @@
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+}
+
+.feed-container {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 4/3;
+}
+
+.feed-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}

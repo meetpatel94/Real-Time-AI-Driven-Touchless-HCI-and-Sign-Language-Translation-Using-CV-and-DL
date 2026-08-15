@@ -1,0 +1,1 @@
+"""Sign Alphabet Core Package"""

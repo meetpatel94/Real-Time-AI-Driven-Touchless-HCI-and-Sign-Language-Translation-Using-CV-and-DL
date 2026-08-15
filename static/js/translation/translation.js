@@ -1,0 +1,1 @@
+console.log("Translation module script loaded.");

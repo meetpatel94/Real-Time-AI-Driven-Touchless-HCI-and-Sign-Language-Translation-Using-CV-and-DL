@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Translation - GestureForge AI{% endblock %}
+{% block page_title %}🌐 Translation{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/translation.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>Translation Shell</h3>
+    <p style="margin-top: 0.5rem; color: var(--text-muted);">
+        Phase 0 Active. Multi-language translation services will be attached in Phase 9.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/translation/translation.js') }}"></script>
+{% endblock %}

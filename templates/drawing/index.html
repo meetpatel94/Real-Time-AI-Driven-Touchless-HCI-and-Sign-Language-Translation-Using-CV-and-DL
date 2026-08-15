@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Air Drawing - GestureForge AI{% endblock %}
+{% block page_title %}🎨 Air Drawing{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/drawing.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>Air Drawing Shell</h3>
+    <p style="margin-top: 0.5rem; color: var(--text-muted);">
+        Phase 0 Active. Drawing canvas engines will be attached in Phase 4.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/drawing/drawing.js') }}"></script>
+{% endblock %}

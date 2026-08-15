@@ -1,0 +1,159 @@
+.alphabet-layout {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 1.5rem;
+}
+
+.letter-selector-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.btn-letter {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.btn-letter:hover {
+    border-color: var(--accent-blue);
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.btn-letter.active {
+    background: var(--accent-blue);
+    color: #000;
+    border-color: var(--accent-blue);
+}
+
+.btn-letter.completed {
+    border-color: var(--accent-green);
+}
+
+.btn-letter.completed::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    background: var(--accent-green);
+    border-radius: 50%;
+}
+
+.collector-controls {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.btn-action {
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.btn-start {
+    background: var(--accent-green);
+    color: #000;
+}
+
+.btn-start:hover {
+    filter: brightness(1.1);
+}
+
+.btn-stop {
+    background: var(--accent-red);
+    color: #fff;
+}
+
+.btn-stop:hover {
+    filter: brightness(1.1);
+}
+
+.btn-clear {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+}
+
+.btn-clear:hover {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.progress-track {
+    width: 100%;
+    height: 14px;
+    background: var(--bg-dark);
+    border-radius: 7px;
+    overflow: hidden;
+    margin: 1rem 0 0.5rem 0;
+    border: 1px solid var(--border-color);
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-blue);
+    transition: width 0.15s ease;
+}
+
+.progress-fill.done {
+    background: var(--accent-green);
+}
+
+.summary-matrix {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    max-height: 420px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    padding-right: 0.5rem;
+}
+
+.matrix-item {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.matrix-item.complete {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.matrix-letter {
+    font-weight: 700;
+    color: var(--accent-blue);
+}
+
+.matrix-count {
+    color: var(--text-muted);
+    font-family: monospace;
+}

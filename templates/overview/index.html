@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Overview - GestureForge AI{% endblock %}
+{% block page_title %}🏠 Overview{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>Live Camera Stream</h3>
+        <div class="feed-container" style="margin-top: 1rem;">
+            <img src="{{ url_for('camera.video_feed') }}" alt="Camera Feed">
+        </div>
+    </div>
+    <div class="card">
+        <h3>System Overview</h3>
+        <p style="margin-top: 1rem; color: var(--text-muted);">
+            Welcome to GestureForge AI. Use the left sidebar to toggle camera capture and global gesture tracking.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/overview/overview.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Air Mouse - GestureForge AI{% endblock %}
+{% block page_title %}🖱️ Air Mouse{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mouse.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>Air Mouse Control Shell</h3>
+    <p style="margin-top: 0.5rem; color: var(--text-muted);">
+        Phase 0 Active. Real OS mouse control will be implemented in Phase 1.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/mouse/mouse.js') }}"></script>
+{% endblock %}

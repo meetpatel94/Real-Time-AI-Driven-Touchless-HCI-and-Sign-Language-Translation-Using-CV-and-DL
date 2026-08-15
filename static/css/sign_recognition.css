@@ -1,0 +1,152 @@
+.recognition-layout {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 1.5rem;
+}
+
+.status-pill-strip {
+    display: flex;
+    justify-content: space-between;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    margin-top: 1rem;
+    color: var(--text-muted);
+}
+
+.status-pill-strip strong {
+    color: var(--text-main);
+}
+
+.hero-prediction {
+    font-size: 5.5rem;
+    font-weight: 900;
+    color: var(--accent-blue);
+    line-height: 1.1;
+    margin: 1rem 0;
+    text-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+}
+
+.letter-picker-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.btn-pick-letter {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-pick-letter:hover {
+    border-color: var(--accent-blue);
+}
+
+.btn-pick-letter.active {
+    background: var(--accent-blue);
+    color: #000;
+    border-color: var(--accent-blue);
+}
+
+.test-comparison-box {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.compare-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.compare-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.compare-val {
+    font-size: 1.6rem;
+    font-weight: 800;
+}
+
+.compare-divider {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.test-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.test-stat-card {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 0.6rem;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.stat-lbl {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    display: block;
+}
+
+.stat-num {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.2rem;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 0.8rem;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-dark);
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+}
+
+.history-label {
+    font-weight: 700;
+    color: var(--accent-blue);
+    font-size: 1.1rem;
+}
+
+.history-conf {
+    color: var(--text-muted);
+}

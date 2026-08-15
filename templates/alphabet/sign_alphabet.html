@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Sign Alphabet - GestureForge AI{% endblock %}
+{% block page_title %}🔤 Sign Alphabet — Static Hand Sign Recognition{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sign_alphabet.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sign-alphabet-container">
+    <!-- OVERVIEW STATS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">Total Images</span>
+            <span id="stat-total-images" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Total Classes</span>
+            <span id="stat-total-classes" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Train / Val Split</span>
+            <span id="stat-split-images" class="stat-value">0 / 0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Dataset Size</span>
+            <span id="stat-dataset-size" class="stat-value">0.0 MB</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Model Status</span>
+            <span id="stat-model-status" class="stat-value" style="font-size: 1.1rem; color: var(--accent-green);">CHECKING</span>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD SPLIT -->
+    <div class="dashboard-split">
+        <!-- LEFT: DYNAMIC ALPHABET CLASS GRID -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>Dataset Classes</h3>
+                <span id="classes-badge" class="badge">0 CLASSES DETECTED</span>
+            </div>
+            <div class="classes-grid" id="classes-grid-container">
+                <!-- Dynamically populated via JS -->
+            </div>
+        </div>
+
+        <!-- RIGHT: MODEL TRAINING PANEL -->
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Model Training Panel</h3>
+                    <span id="device-pill" class="badge badge-success">DETECTING</span>
+                </div>
+
+                <div class="training-specs-grid">
+                    <div class="spec-item"><span>Model:</span> <span>MobileNetV2</span></div>
+                    <div class="spec-item"><span>Image Size:</span> <span>160 × 160</span></div>
+                    <div class="spec-item"><span>Batch Size:</span> <span>16</span></div>
+                    <div class="spec-item"><span>Validation:</span> <span>20%</span></div>
+                    <div class="spec-item"><span>Optimizer:</span> <span>Adam (0.001)</span></div>
+                    <div class="spec-item">
+                        <span>Epochs:</span>
+                        <input type="number" id="input-epochs" value="15" min="1" max="100" style="width: 55px; background: var(--bg-dark); color: #fff; border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 5px;">
+                    </div>
+                </div>
+
+                <!-- LIVE PROGRESS SECTION -->
+                <div style="margin-top: 1.2rem;">
+                    <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem;">
+                        <span>Status: <strong id="train-status-text" style="color: var(--accent-blue);">IDLE</strong></span>
+                        <span id="train-epoch-text">Epoch 0 / 15</span>
+                    </div>
+
+                    <div style="width: 100%; height: 12px; background: var(--bg-dark); border-radius: 6px; overflow: hidden; margin: 0.6rem 0; border: 1px solid var(--border-color);">
+                        <div id="train-progress-bar" style="width: 0%; height: 100%; background: var(--accent-blue); transition: width 0.3s ease;"></div>
+                    </div>
+
+                    <div class="progress-metrics-grid">
+                        <div class="metric-box">
+                            <span class="metric-title">Train Acc</span>
+                            <span id="metric-train-acc" class="metric-val">0.0%</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-title">Val Acc</span>
+                            <span id="metric-val-acc" class="metric-val">0.0%</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-title">Train Loss</span>
+                            <span id="metric-train-loss" class="metric-val loss">0.00</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-title">Val Loss</span>
+                            <span id="metric-val-loss" class="metric-val loss">0.00</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.6rem;">
+                        <span>Elapsed: <strong id="time-elapsed" style="color: var(--text-main);">00:00</strong></span>
+                        <span>Est. Remaining: <strong id="time-remaining" style="color: var(--text-main);">00:00</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+                <button id="btn-start-train" class="btn-toggle active" style="flex: 1; background: var(--accent-green); color: #000; border-color: var(--accent-green);">▶ START TRAINING</button>
+                <button id="btn-stop-train" class="btn-toggle" style="flex: 1; display: none; background: var(--accent-red); color: #fff; border-color: var(--accent-red);">⏹ STOP TRAINING</button>
+                <a id="btn-export-model" href="/sign-alphabet/export-model" class="btn-toggle" style="text-decoration: none; width: auto; padding: 0.6rem 1.2rem;">📥 EXPORT MODEL</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/alphabet/sign_alphabet.js') }}"></script>
+{% endblock %}

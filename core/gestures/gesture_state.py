@@ -1,0 +1,16 @@
+from enum import Enum
+
+class GestureType(Enum):
+    NONE = "NONE"
+    ONE_FINGER = "ONE_FINGER"
+    TWO_FINGER = "TWO_FINGER"
+    THREE_FINGER = "THREE_FINGER"
+    FOUR_FINGER = "FOUR_FINGER"
+    FIVE_FINGER = "FIVE_FINGER"
+
+class InteractionState(Enum):
+    IDLE = "IDLE"
+    ONE_FINGER = "ONE_FINGER"
+    DWELLING = "DWELLING"
+    SELECTED = "SELECTED"
+    CANCELLED = "CANCELLED"

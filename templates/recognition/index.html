@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Sign Recognition - GestureForge AI{% endblock %}
+{% block page_title %}🔤 Sign Recognition — Live Model Testing{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sign_recognition.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="recognition-layout">
+    <!-- LEFT PANEL: CAMERA & DETECTION FEED -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>Live Camera Feed</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <span id="badge-model" class="badge">MODEL: INITIALIZING</span>
+                    <span id="badge-hand" class="badge badge-danger">NO HAND</span>
+                </div>
+            </div>
+            
+            <div class="feed-container">
+                <img src="{{ url_for('camera.video_feed') }}" alt="Camera Stream">
+            </div>
+
+            <!-- LIVE STATUS SUMMARY BAR -->
+            <div class="status-pill-strip">
+                <div><span>MODEL:</span> <strong id="val-model-name">None</strong></div>
+                <div><span>CAMERA:</span> <strong id="val-cam-fps">0 FPS</strong></div>
+                <div><span>INFERENCE:</span> <strong id="val-inf-fps">0 FPS</strong></div>
+                <div><span>CONFIDENCE CUTOFF:</span> <strong>70%</strong></div>
+            </div>
+        </div>
+
+        <!-- MANUAL TESTING & VALIDATION PANEL -->
+        <div class="card">
+            <h3>Manual Test Mode</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.4rem 0 1rem 0;">
+                Select expected letter, perform the sign, and click <strong>Mark Test</strong> to record validation accuracy.
+            </p>
+
+            <div class="letter-picker-strip" id="letter-picker-container">
+                <!-- A-Z selector generated via JS -->
+            </div>
+
+            <div class="test-comparison-box">
+                <div class="compare-item">
+                    <span class="compare-label">Expected</span>
+                    <span id="compare-expected" class="compare-val" style="color: var(--accent-blue);">A</span>
+                </div>
+                <div class="compare-divider">vs</div>
+                <div class="compare-item">
+                    <span class="compare-label">Predicted</span>
+                    <span id="compare-predicted" class="compare-val" style="color: var(--accent-green);">NONE</span>
+                </div>
+                <div class="compare-item">
+                    <span class="compare-label">Match</span>
+                    <span id="compare-result" class="compare-badge badge">—</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.2rem;">
+                <button id="btn-mark-test" class="btn-toggle active" style="background: var(--accent-green); color: #000; border-color: var(--accent-green);">✓ MARK TEST (SPACE)</button>
+                <button id="btn-reset-test" class="btn-toggle" style="width: auto; padding: 0.6rem 1rem;">↺ RESET STATS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: PREDICTION RESULTS & STATS -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- MAIN PREDICTION CARD -->
+        <div class="card" style="text-align: center; padding: 2rem 1.5rem;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">CURRENT PREDICTION</span>
+            <div id="live-prediction-letter" class="hero-prediction">NONE</div>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                <span style="font-size: 0.9rem; color: var(--text-muted);">Confidence:</span>
+                <span id="live-prediction-conf" style="font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">0.0%</span>
+            </div>
+        </div>
+
+        <!-- VALIDATION SCORECARD -->
+        <div class="card">
+            <h3>Validation Scorecard</h3>
+            <div class="test-stats-grid">
+                <div class="test-stat-card">
+                    <span class="stat-lbl">Total Tests</span>
+                    <span id="test-stat-total" class="stat-num">0</span>
+                </div>
+                <div class="test-stat-card">
+                    <span class="stat-lbl">Correct</span>
+                    <span id="test-stat-correct" class="stat-num" style="color: var(--accent-green);">0</span>
+                </div>
+                <div class="test-stat-card">
+                    <span class="stat-lbl">Incorrect</span>
+                    <span id="test-stat-incorrect" class="stat-num" style="color: var(--accent-red);">0</span>
+                </div>
+                <div class="test-stat-card">
+                    <span class="stat-lbl">Accuracy</span>
+                    <span id="test-stat-accuracy" class="stat-num" style="color: var(--accent-blue);">0.0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RECENT PREDICTIONS -->
+        <div class="card">
+            <h3>Recent Predictions</h3>
+            <div class="history-list" id="history-list-container">
+                <div style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0;">No stable predictions recorded yet.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/recognition/sign_recognition.js') }}"></script>
+{% endblock %}

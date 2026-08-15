@@ -1,0 +1,112 @@
+# ==========================================
+# GestureForge AI — Git Ignore Configuration
+# ==========================================
+
+# --- Python Virtual Environments ---
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# --- Python Bytecode & Cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# --- IDEs and Text Editors ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+
+# --- Operating System Files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Build, Distribution & Packaging ---
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+*.manifest
+*.spec
+
+# --- Testing and Typing Caches ---
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Environment Files & Secrets ---
+.env
+.env.*
+.env.local
+!.env.example
+
+# --- Logs & Debug Dumps ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Temporary & Scratch Files ---
+*.tmp
+*.temp
+temp/
+tmp/
+*.swp
+*.swo
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# --- Large Datasets & Image Dumps ---
+# Ignores local image datasets (13,000+ images) while keeping directory structures
+data/dataset/
+data/dataset/*
+data/exports/*
+data/raw/
+data/processed/
+dataset/
+datasets/
+uploads/
+collected_data/
+captures/
+*.zip
+*.tar.gz
+*.rar
+
+# --- Temporary Output & Evaluation Caches ---
+training_outputs/
+checkpoints/
+runs/
+artifacts/
+output/
+outputs/
+
+# --- Model Checkpoints & Temporary Weights ---
+# Keep trackable model artifacts in models/, ignore checkpoint fragments
+# models/**/*.tmp
+# models/**/*.temp
+# models/checkpoints/
+
+# --- Git Keepers ---
+!.gitkeep
+!data/.gitkeep
+# !models/.gitkeep

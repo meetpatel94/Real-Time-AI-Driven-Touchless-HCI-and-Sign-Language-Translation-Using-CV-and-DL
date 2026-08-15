@@ -1,0 +1,18 @@
+{
+  "status": "COMPLETED",
+  "device": "CPU",
+  "current_epoch": 6,
+  "total_epochs": 15,
+  "progress_percent": 100.0,
+  "train_accuracy": 98.94,
+  "val_accuracy": 98.69,
+  "train_loss": 0.039,
+  "val_loss": 0.0375,
+  "elapsed_seconds": 770,
+  "estimated_remaining_seconds": 0,
+  "best_val_accuracy": 956200000000.0,
+  "best_epoch": 1,
+  "error_message": "",
+  "start_time": 1786795512.1174877,
+  "last_updated": 1786796314.7478323
+}

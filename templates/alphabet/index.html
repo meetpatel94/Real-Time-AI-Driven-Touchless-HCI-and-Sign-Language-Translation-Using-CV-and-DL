@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Sign Alphabet Dataset - GestureForge AI{% endblock %}
+{% block page_title %}🔤 Sign Alphabet Dataset Collection{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/alphabet.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="alphabet-layout">
+    <!-- LEFT PANEL: CAPTURE WORKSPACE -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Dataset Collector</h3>
+                <span id="capture-status-pill" class="badge">IDLE</span>
+            </div>
+
+            <!-- LETTER SELECTOR STRIP -->
+            <div class="letter-selector-wrapper" id="letter-selector-container">
+                <!-- Populated dynamically via JS A-Z -->
+            </div>
+
+            <!-- VIDEO FEED VIEW -->
+            <div class="feed-container" style="max-height: 380px;">
+                <img src="{{ url_for('camera.video_feed') }}" alt="Camera Stream">
+            </div>
+
+            <!-- PROGRESS METRICS -->
+            <div style="margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; font-weight: 600;">
+                    <span>Class <strong id="display-selected-letter" style="color: var(--accent-blue);">A</strong> Progress</span>
+                    <span id="display-class-progress">0 / 500 (0.0%)</span>
+                </div>
+                <div class="progress-track">
+                    <div id="class-progress-bar" class="progress-fill"></div>
+                </div>
+                <span id="capture-message" style="font-size: 0.8rem; color: var(--text-muted);">Ready to record samples.</span>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="collector-controls">
+                <button id="btn-start-collection" class="btn-action btn-start">▶ Start Collection</button>
+                <button id="btn-stop-collection" class="btn-action btn-stop" style="display: none;">⏹ Stop Collection</button>
+                <button id="btn-clear-class" class="btn-action btn-clear">🗑 Clear Class</button>
+                
+                <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="select-target-count" style="font-size: 0.8rem; color: var(--text-muted);">Target:</label>
+                    <select id="select-target-count" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); padding: 0.4rem 0.6rem; border-radius: 6px;">
+                        <option value="500" selected>500</option>
+                        <option value="750">750</option>
+                        <option value="1000">1000</option>
+                        <option value="1500">1500</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: SUMMARY & BREAKDOWN -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card">
+            <h3>Dataset Summary</h3>
+            <div style="display: flex; justify-content: space-between; margin-top: 1rem; font-weight: 600;">
+                <span>Total Collected:</span>
+                <span id="display-total-dataset" style="color: var(--accent-green);">0 / 13,000</span>
+            </div>
+            
+            <div class="progress-track">
+                <div id="total-progress-bar" class="progress-fill"></div>
+            </div>
+
+            <!-- 26 ALPHABET BREAKDOWN GRID -->
+            <h4 style="margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">Class Breakdown</h4>
+            <div class="summary-matrix" id="summary-matrix-container">
+                <!-- Dynamically populated via JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/alphabet/alphabet.js') }}"></script>
+{% endblock %}
