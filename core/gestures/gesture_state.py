@@ -7,6 +7,7 @@ class GestureType(Enum):
     THREE_FINGER = "THREE_FINGER"
     FOUR_FINGER = "FOUR_FINGER"
     FIVE_FINGER = "FIVE_FINGER"
+    CLOSED_FIST = "CLOSED_FIST"
 
 class InteractionState(Enum):
     IDLE = "IDLE"
@@ -14,3 +15,4 @@ class InteractionState(Enum):
     DWELLING = "DWELLING"
     SELECTED = "SELECTED"
     CANCELLED = "CANCELLED"
+    COMMITTING = "COMMITTING"

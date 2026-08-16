@@ -3,14 +3,19 @@ from typing import Tuple
 from core.gestures.gesture_state import GestureType
 
 class GestureClassifier:
-    """Classifies MediaPipe hand landmarks into application gestures."""
+    """Classifies geometric MediaPipe hand landmarks for cursor control and fist detection."""
 
     def _is_extended(self, tip, pip, mcp, wrist) -> bool:
-        """Determines finger extension relative to knuckle and wrist."""
         dist_tip = math.hypot(tip.x - wrist.x, tip.y - wrist.y)
         dist_pip = math.hypot(pip.x - wrist.x, pip.y - wrist.y)
         dist_mcp = math.hypot(mcp.x - wrist.x, mcp.y - wrist.y)
         return dist_tip > dist_pip and dist_pip > dist_mcp and tip.y < pip.y
+
+    def _is_folded(self, tip, pip, wrist) -> bool:
+        """Determines if a finger is tightly folded toward the palm."""
+        dist_tip = math.hypot(tip.x - wrist.x, tip.y - wrist.y)
+        dist_pip = math.hypot(pip.x - wrist.x, pip.y - wrist.y)
+        return dist_tip < dist_pip
 
     def classify(self, landmarks, image_shape: Tuple[int, int]) -> GestureType:
         if not landmarks:
@@ -24,7 +29,17 @@ class GestureClassifier:
         ring_ext = self._is_extended(lm[16], lm[14], lm[13], wrist)
         pinky_ext = self._is_extended(lm[20], lm[18], lm[17], wrist)
 
+        index_fold = self._is_folded(lm[8], lm[6], wrist)
+        middle_fold = self._is_folded(lm[12], lm[10], wrist)
+        ring_fold = self._is_folded(lm[16], lm[14], wrist)
+        pinky_fold = self._is_folded(lm[20], lm[18], wrist)
+
         extended_count = sum([index_ext, middle_ext, ring_ext, pinky_ext])
+        folded_count = sum([index_fold, middle_fold, ring_fold, pinky_fold])
+
+        # Strict Fist Condition: At least 3 fingers tightly folded, none fully extended
+        if folded_count >= 3 and extended_count == 0:
+            return GestureType.CLOSED_FIST
 
         if extended_count == 1 and index_ext:
             return GestureType.ONE_FINGER

@@ -6,7 +6,7 @@ from services.logging_service import logger
 from services.state_service import global_state
 
 class CameraManager:
-    """Thread-safe camera hardware manager with annotated display buffer."""
+    """Thread-safe, non-blocking single OpenCV camera capture owner."""
     _instance = None
     _lock = threading.Lock()
 
@@ -21,9 +21,12 @@ class CameraManager:
         self.cap: Optional[cv2.VideoCapture] = None
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
-        self.raw_frame: Optional[cv2.Mat] = None
-        self.display_frame: Optional[cv2.Mat] = None
-        self.frame_lock = threading.Lock()
+        
+        # Double-buffer pointers for zero-lock reads
+        self._raw_frame: Optional[cv2.Mat] = None
+        self._display_frame: Optional[cv2.Mat] = None
+        self._frame_lock = threading.Lock()
+        
         self.fps = 0
         self.frame_count = 0
         self.start_time = time.time()
@@ -32,20 +35,25 @@ class CameraManager:
         with self._lock:
             if self.is_running:
                 return True
-            logger.info(f"Initializing camera hardware at index {camera_index}...")
+            logger.info(f"Opening camera hardware at index {camera_index}...")
             self.cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
             if not self.cap.isOpened():
                 self.cap = cv2.VideoCapture(camera_index)
             
             if not self.cap.isOpened():
-                logger.error(f"Failed to open camera hardware at index {camera_index}")
+                logger.error(f"Failed to open webcam at index {camera_index}")
                 return False
+
+            # Set hardware resolution & buffer size to eliminate latency
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
             self.is_running = True
             global_state.set_camera_state(True)
             self.thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.thread.start()
-            logger.info("Camera stream started.")
+            logger.info("Camera capture loop started successfully.")
             return True
 
     def stop(self) -> None:
@@ -60,9 +68,9 @@ class CameraManager:
             if self.cap:
                 self.cap.release()
                 self.cap = None
-            self.raw_frame = None
-            self.display_frame = None
-            logger.info("Camera stream stopped.")
+            self._raw_frame = None
+            self._display_frame = None
+            logger.info("Camera capture stopped.")
 
     def _capture_loop(self) -> None:
         self.start_time = time.time()
@@ -71,16 +79,15 @@ class CameraManager:
             if not self.cap or not self.cap.isOpened():
                 break
             ret, frame = self.cap.read()
-            if not ret:
-                time.sleep(0.01)
+            if not ret or frame is None:
+                time.sleep(0.005)
                 continue
 
+            # Mirror frame horizontally once at source
             frame = cv2.flip(frame, 1)
 
-            with self.frame_lock:
-                self.raw_frame = frame
-                if self.display_frame is None:
-                    self.display_frame = frame.copy()
+            with self._frame_lock:
+                self._raw_frame = frame
 
             self.frame_count += 1
             elapsed = time.time() - self.start_time
@@ -90,20 +97,21 @@ class CameraManager:
                 self.frame_count = 0
                 self.start_time = time.time()
 
-            time.sleep(0.01)
+            # Slight sleep to yield execution to inference and Flask threads
+            time.sleep(0.005)
 
     def get_raw_frame(self) -> Optional[cv2.Mat]:
-        with self.frame_lock:
-            return self.raw_frame.copy() if self.raw_frame is not None else None
+        with self._frame_lock:
+            return self._raw_frame.copy() if self._raw_frame is not None else None
 
     def set_display_frame(self, frame: cv2.Mat) -> None:
-        with self.frame_lock:
-            self.display_frame = frame
+        with self._frame_lock:
+            self._display_frame = frame
 
     def get_display_frame(self) -> Optional[cv2.Mat]:
-        with self.frame_lock:
-            if self.display_frame is not None:
-                return self.display_frame.copy()
-            return self.raw_frame.copy() if self.raw_frame is not None else None
+        with self._frame_lock:
+            if self._display_frame is not None:
+                return self._display_frame
+            return self._raw_frame
 
 camera_manager = CameraManager()

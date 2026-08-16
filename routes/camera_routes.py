@@ -7,6 +7,7 @@ from services.state_service import global_state
 camera_bp = Blueprint("camera", __name__)
 
 def generate_frames():
+    """Streaming generator that yields frames at 30 FPS without blocking the capture thread."""
     while True:
         state = global_state.get_state()
         if state["camera_enabled"]:
@@ -16,11 +17,13 @@ def generate_frames():
         else:
             frame = FrameProcessor.create_placeholder_frame(message="CAMERA OFF")
 
-        jpeg_bytes = FrameProcessor.encode_to_jpeg(frame)
+        jpeg_bytes = FrameProcessor.encode_to_jpeg(frame, quality=75)
         if jpeg_bytes:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
-        time.sleep(0.03)
+        
+        # 30 FPS output throttling
+        time.sleep(0.033)
 
 @camera_bp.route("/video_feed")
 def video_feed():
