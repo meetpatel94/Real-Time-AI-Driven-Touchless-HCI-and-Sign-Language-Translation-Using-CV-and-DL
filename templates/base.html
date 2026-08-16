@@ -11,44 +11,87 @@
 </head>
 <body>
     <div id="app-container">
-        <!-- LEFT SIDEBAR -->
+        <!-- COLLAPSIBLE LEFT SIDEBAR -->
         <aside id="sidebar">
             <div>
-                <div class="brand">
-                    <span>⚡ GestureForge AI</span>
+                <div class="brand-header">
+                    <button id="sidebar-toggle" class="btn-hamburger" title="Toggle Sidebar">☰</button>
+                    <div class="brand-title">
+                        <span>⚡ GestureForge</span>
+                    </div>
                 </div>
                 <nav>
                     <ul class="nav-list">
-                        <li class="nav-item"><a href="{{ url_for('overview.overview') }}">🏠 Overview</a></li>
-                        <li class="nav-item"><a href="{{ url_for('mouse.mouse') }}">🖱️ Air Mouse</a></li>
-                        <li class="nav-item"><a href="{{ url_for('drawing.drawing') }}">🎨 Air Drawing</a></li>
-                        <li class="nav-item"><a href="{{ url_for('alphabet.alphabet') }}">🔤 Sign Alphabet</a></li>
-                        <li class="nav-item"><a href="{{ url_for('recognition.recognition') }}">🔤 Sign Recognition</a></li>
-                        <li class="nav-item"><a href="{{ url_for('sentence.sentence') }}">📝 Sentence Builder</a></li>
-                        <li class="nav-item"><a href="{{ url_for('translation.translation') }}">🌐 Translation</a></li>
+                        <li class="nav-item" data-tooltip="Overview">
+                            <a href="{{ url_for('overview.overview') }}">
+                                <span class="nav-icon">🏠</span>
+                                <span class="nav-label">Overview</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Air Drawing">
+                            <a href="{{ url_for('drawing.drawing') }}">
+                                <span class="nav-icon">🎨</span>
+                                <span class="nav-label">Air Drawing</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Sign Alphabet">
+                            <a href="{{ url_for('alphabet.alphabet') }}">
+                                <span class="nav-icon">🔤</span>
+                                <span class="nav-label">Sign Alphabet</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Sign Recognition">
+                            <a href="{{ url_for('recognition.recognition') }}">
+                                <span class="nav-icon">🎯</span>
+                                <span class="nav-label">Sign Recognition</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Sign Language Studio">
+                            <a href="{{ url_for('studio.sign_language_studio') }}">
+                                <span class="nav-icon">🤟</span>
+                                <span class="nav-label">Studio</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Sentence Builder">
+                            <a href="{{ url_for('sentence.sentence') }}">
+                                <span class="nav-icon">📝</span>
+                                <span class="nav-label">Sentence Builder</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" data-tooltip="Translation">
+                            <a href="{{ url_for('translation.translation') }}">
+                                <span class="nav-icon">🌐</span>
+                                <span class="nav-label">Translation</span>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>
 
-            <!-- CONTROLS -->
+            <!-- SIDEBAR CONTROLS -->
             <div class="sidebar-controls">
-                <div class="control-group">
-                    <span class="control-label">Camera Control</span>
-                    <button id="btn-toggle-camera" class="btn-toggle">○ CAMERA OFF</button>
+                <div class="control-group" data-tooltip="Camera ON/OFF">
+                    <span class="control-label">Camera</span>
+                    <button id="btn-toggle-camera" class="btn-toggle">
+                        <span class="btn-toggle-icon">○</span>
+                        <span class="btn-toggle-text">CAMERA OFF</span>
+                    </button>
                 </div>
-                <div class="control-group">
-                    <span class="control-label">Air Gesture Control</span>
-                    <button id="btn-toggle-gesture" class="btn-toggle">🛑 AIR GESTURE OFF</button>
+                <div class="control-group" data-tooltip="Air Gesture ON/OFF">
+                    <span class="control-label">Air Gesture</span>
+                    <button id="btn-toggle-gesture" class="btn-toggle">
+                        <span class="btn-toggle-icon">🛑</span>
+                        <span class="btn-toggle-text">AIR GESTURE OFF</span>
+                    </button>
                 </div>
             </div>
         </aside>
 
-        <!-- MAIN WRAPPER -->
+        <!-- MAIN CONTENT AREA -->
         <div id="main-wrapper">
             <header id="header">
                 <h2>{% block page_title %}Dashboard{% endblock %}</h2>
                 <div style="display: flex; gap: 1rem; align-items: center;">
-                    <!-- DWELL PROGRESS INDICATOR -->
                     <div id="dwell-container" style="display: flex; align-items: center; gap: 0.5rem; opacity: 0; transition: opacity 0.2s;">
                         <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-blue);">DWELL:</span>
                         <div style="width: 100px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">

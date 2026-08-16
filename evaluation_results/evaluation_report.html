@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GestureForge AI — Model Evaluation Report</title>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1, h2, h3 { color: #38bdf8; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .metric-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.2rem; text-align: center; }
+        .metric-title { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
+        .metric-val { font-size: 2rem; font-weight: 800; color: #22c55e; margin-top: 0.3rem; }
+        .metric-val.loss { color: #38bdf8; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 2rem 0; }
+        .chart-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+        .chart-card img { width: 100%; border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        th, td { padding: 0.6rem 1rem; border: 1px solid #334155; text-align: center; }
+        th { background: #0f172a; color: #38bdf8; font-weight: 600; }
+        tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ GestureForge AI — Sign Alphabet Model Evaluation</h1>
+        <p style="color: #94a3b8;">Evaluated model: <code>sign_alphabet_model.keras</code> | Architecture: MobileNetV2 Transfer Learning</p>
+        
+        <div class="metrics-grid">
+            <div class="metric-card"><div class="metric-title">Accuracy</div><div class="metric-val">98.69%</div></div>
+            <div class="metric-card"><div class="metric-title">Weighted Precision</div><div class="metric-val">100.00%</div></div>
+            <div class="metric-card"><div class="metric-title">Weighted Recall</div><div class="metric-val">98.69%</div></div>
+            <div class="metric-card"><div class="metric-title">Weighted F1</div><div class="metric-val">99.28%</div></div>
+            <div class="metric-card"><div class="metric-title">Validation Loss</div><div class="metric-val loss">0.0457</div></div>
+        </div>
+
+        <div class="chart-grid">
+            <div class="chart-card"><h3>Confusion Matrix</h3><img src="confusion_matrix.png" alt="Confusion Matrix"></div>
+            <div class="chart-card"><h3>Normalized Confusion Matrix</h3><img src="confusion_matrix_normalized.png" alt="Normalized Confusion Matrix"></div>
+            <div class="chart-card"><h3>Dataset Distribution (A-Z)</h3><img src="dataset_class_distribution.png" alt="Dataset Distribution"></div>
+            <div class="chart-card"><h3>Train / Validation Split</h3><img src="train_validation_split.png" alt="Train Validation Split"></div>
+            <div class="chart-card"><h3>Per-Class F1 Score</h3><img src="per_class_f1.png" alt="Per Class F1"></div>
+            <div class="chart-card"><h3>Class Metrics (Precision/Recall/F1)</h3><img src="class_metrics.png" alt="Class Metrics"></div>
+        </div>
+
+        <div class="chart-card">
+            <h3>Classification Report Table</h3>
+            <table border="1" class="dataframe table">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>precision</th>
+      <th>recall</th>
+      <th>f1-score</th>
+      <th>support</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>A</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>B</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>C</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>D</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>E</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>F</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>G</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>H</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>I</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>J</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>K</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>L</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>M</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>N</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>O</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>P</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>Q</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>R</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>S</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>T</th>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+      <td>0.0000</td>
+    </tr>
+    <tr>
+      <th>U</th>
+      <td>1.0000</td>
+      <td>0.7600</td>
+      <td>0.8636</td>
+      <td>100.0000</td>
+    </tr>
+    <tr>
+      <th>V</th>
+      <td>1.0000</td>
+      <td>0.9980</td>
+      <td>0.9990</td>
+      <td>500.0000</td>
+    </tr>
+    <tr>
+      <th>W</th>
+      <td>1.0000</td>
+      <td>0.9940</td>
+      <td>0.9970</td>
+      <td>500.0000</td>
+    </tr>
+    <tr>
+      <th>X</th>
+      <td>1.0000</td>
+      <td>0.9960</td>
+      <td>0.9980</td>
+      <td>500.0000</td>
+    </tr>
+    <tr>
+      <th>Y</th>
+      <td>1.0000</td>
+      <td>0.9920</td>
+      <td>0.9960</td>
+      <td>500.0000</td>
+    </tr>
+    <tr>
+      <th>Z</th>
+      <td>1.0000</td>
+      <td>1.0000</td>
+      <td>1.0000</td>
+      <td>500.0000</td>
+    </tr>
+    <tr>
+      <th>accuracy</th>
+      <td>0.9869</td>
+      <td>0.9869</td>
+      <td>0.9869</td>
+      <td>0.9869</td>
+    </tr>
+    <tr>
+      <th>macro avg</th>
+      <td>0.2308</td>
+      <td>0.2208</td>
+      <td>0.2251</td>
+      <td>2600.0000</td>
+    </tr>
+    <tr>
+      <th>weighted avg</th>
+      <td>1.0000</td>
+      <td>0.9869</td>
+      <td>0.9928</td>
+      <td>2600.0000</td>
+    </tr>
+  </tbody>
+</table>
+        </div>
+    </div>
+</body>
+</html>

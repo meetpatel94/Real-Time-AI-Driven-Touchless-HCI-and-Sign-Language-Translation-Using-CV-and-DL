@@ -46,7 +46,7 @@ class GestureEngine:
             self.hands = self.mp_hands.Hands(
                 static_image_mode=False,
                 max_num_hands=2,
-                model_complexity=0,  # Fast tracking on CPU
+                model_complexity=0,  # Fast CPU tracking
                 min_detection_confidence=0.6,
                 min_tracking_confidence=0.6
             )
@@ -104,8 +104,9 @@ class GestureEngine:
                 # Process dataset collection if active
                 dataset_collector.process_frame(frame, results.multi_hand_landmarks)
 
-                # Fast non-blocking submit to inference worker
-                if state.get("active_module") == "recognition":
+                # Submit hand to decoupled inference worker for BOTH recognition and studio modules
+                active_mod = state.get("active_module")
+                if active_mod in ["recognition", "studio"]:
                     inference_worker.submit_hand(frame, primary_hand)
 
                 gesture = self.classifier.classify(primary_hand, frame.shape[:2])
@@ -163,7 +164,8 @@ class GestureEngine:
             else:
                 dwell_controller.reset()
                 self.smoother.reset()
-                if state.get("active_module") == "recognition":
+                active_mod = state.get("active_module")
+                if active_mod in ["recognition", "studio"]:
                     inference_worker.notify_no_hand()
 
                 global_state.update_state({

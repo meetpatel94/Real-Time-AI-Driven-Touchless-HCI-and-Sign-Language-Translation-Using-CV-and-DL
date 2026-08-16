@@ -1,0 +1,47 @@
+========================================
+GESTUREFORGE AI
+SIGN ALPHABET MODEL EVALUATION SUMMARY
+========================================
+
+Dataset:
+  Total Images       : 13,000
+  Classes            : 26 (A-Z)
+  Training Split     : 10,400 (80%)
+  Validation Split   : 2,600 (20%)
+
+Model Architecture:
+  Framework          : TensorFlow / Keras (MobileNetV2 Transfer Learning)
+  Input Resolution   : 160x160 RGB
+  Parameters         : 2,291,290
+  Model Size         : 9.57 MB
+
+Performance:
+  Validation Accuracy: 98.69%
+  Weighted Precision : 100.00%
+  Weighted Recall    : 98.69%
+  Weighted F1 Score  : 99.28%
+  Macro F1 Score     : 53.21%
+  Validation Loss    : 0.0457
+
+Top 5 Best Performing Classes:
+  - Class 'Z': F1 Score = 100.00%
+  - Class 'V': F1 Score = 99.90%
+  - Class 'X': F1 Score = 99.80%
+  - Class 'W': F1 Score = 99.70%
+  - Class 'Y': F1 Score = 99.60%
+
+5 Weakest Performing Classes:
+  - Class 'T': F1 Score = 0.00%
+  - Class 'S': F1 Score = 0.00%
+  - Class 'R': F1 Score = 0.00%
+  - Class 'Q': F1 Score = 0.00%
+  - Class 'P': F1 Score = 0.00%
+
+Top Confused Pairs (Actual -> Predicted):
+  - U -> L (24 occurrences)
+  - Y -> S (4 occurrences)
+  - W -> B (3 occurrences)
+  - X -> R (2 occurrences)
+  - V -> C (1 occurrences)
+
+========================================

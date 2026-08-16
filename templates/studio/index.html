@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Sign Language Studio - GestureForge AI{% endblock %}
+{% block page_title %}🤟 Sign Language Studio{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sign_language_studio.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="studio-compact-container">
+    <!-- SUBTITLE & STATUS HEADER -->
+    <div class="studio-top-bar">
+        <p class="studio-subtitle">Live Gesture Recognition & Translation Workspace</p>
+        <div class="studio-status-strip">
+            <span class="badge badge-success">● SYSTEM READY</span>
+            <span class="badge badge-success">● CAMERA READY</span>
+            <span class="badge badge-success">● MODEL READY</span>
+        </div>
+    </div>
+
+    <!-- MAIN COMPACT WORKSPACE: CAMERA & CURRENT SIGN (LEFT) + SIGN SENTENCE & SUGGESTIONS (RIGHT) -->
+    <div class="studio-main-row">
+        <!-- LEFT: COMPACT CAMERA PREVIEW WITH FLOATING CURRENT SIGN OVERLAY -->
+        <div class="card camera-workspace-card">
+            <div class="camera-card-header">
+                <h3 class="card-title-sm">Live Sign Recognition</h3>
+                <span class="badge badge-success">HAND DETECTED</span>
+            </div>
+            
+            <div class="compact-camera-wrapper">
+                <div class="camera-placeholder-box">
+                    <img src="{{ url_for('camera.video_feed') }}" alt="Camera Stream" onerror="this.style.display='none'; document.getElementById('cam-fallback').style.display='flex';">
+                    <div id="cam-fallback" class="camera-placeholder-content" style="display: none;">
+                        <span class="camera-icon">📷</span>
+                        <span class="camera-text">LIVE CAMERA</span>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC COMPACT GLASS OVERLAY: CURRENT SIGN & CONFIDENCE -->
+                <div class="camera-sign-overlay">
+                    <span class="overlay-eyebrow">CURRENT SIGN</span>
+                    <div class="overlay-sign-char" id="display-current-sign">--</div>
+                    <div class="overlay-conf-row">
+                        <span>Conf:</span>
+                        <strong id="display-confidence-val">0.0%</strong>
+                    </div>
+                    <div class="overlay-conf-track">
+                        <div class="overlay-conf-fill" id="display-confidence-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="overlay-status-row">
+                        <span>Status:</span>
+                        <strong id="display-prediction-status" class="text-accent-muted">WAITING</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: SIGN SENTENCE + WORD SUGGESTIONS -->
+        <div class="card sentence-workspace-card">
+            <div class="sentence-card-header">
+                <h3 class="card-title-sm">Sign Sentence</h3>
+                <span class="badge badge-live">● LIVE INPUT</span>
+            </div>
+
+            <textarea id="sentence-input-area" class="sentence-compact-textarea" readonly>HELLO WORLD</textarea>
+
+            <div class="sentence-meta-row">
+                <div class="sentence-counts">
+                    <span>Characters: <strong id="char-count">11</strong></span>
+                    <span>Words: <strong id="word-count">2</strong></span>
+                </div>
+                <div class="btn-group-compact">
+                    <button id="btn-clear-sentence" class="btn-action-xs btn-danger">CLEAR</button>
+                    <button id="btn-backspace-sentence" class="btn-action-xs btn-secondary">BACKSPACE</button>
+                </div>
+            </div>
+
+            <!-- COMPACT SUGGESTIONS WITHIN SENTENCE AREA -->
+            <div class="suggestions-inline-block">
+                <span class="suggestions-label">Suggestions:</span>
+                <div class="chips-compact-row" id="suggestions-container">
+                    <button class="chip-btn-sm">HELLO</button>
+                    <button class="chip-btn-sm">HELP</button>
+                    <button class="chip-btn-sm">HELICOPTER</button>
+                    <button class="chip-btn-sm">HELMET</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM ROW: TRANSLATION & QUICK ACTIONS -->
+    <div class="studio-bottom-row">
+        <div class="card translation-compact-card">
+            <div class="translation-top-controls">
+                <h3 class="card-title-sm">Translation</h3>
+                <div class="translation-actions-wrap">
+                    <label for="select-target-lang" class="control-label-sm">Translate To:</label>
+                    <select id="select-target-lang" class="form-select-sm">
+                        <option value="English" selected>English</option>
+                        <option value="Hindi">Hindi</option>
+                        <option value="Gujarati">Gujarati</option>
+                    </select>
+                    <button id="btn-trigger-translate" class="btn-action-xs btn-primary">TRANSLATE</button>
+                </div>
+            </div>
+
+            <div class="translated-output-compact" id="translated-output-box">
+                Hello World
+            </div>
+
+            <div class="translation-footer-compact">
+                <div class="meta-item"><span>Source:</span> <strong>Sign Language</strong></div>
+                <div class="meta-item"><span>Target:</span> <strong id="meta-target-lang">English</strong></div>
+                <div class="quick-links">
+                    <button id="qa-copy" class="btn-link">📋 Copy Text</button>
+                    <button id="qa-clear" class="btn-link">🗑 Clear All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/studio/sign_language_studio.js') }}"></script>
+{% endblock %}

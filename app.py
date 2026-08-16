@@ -13,20 +13,20 @@ def create_app():
     from routes.main_routes import main_bp
     from routes.camera_routes import camera_bp
     from routes.overview_routes import overview_bp
-    from routes.mouse_routes import mouse_bp
     from routes.drawing_routes import drawing_bp
     from routes.alphabet_routes import alphabet_bp
     from routes.sign_recognition_routes import recognition_bp
+    from routes.studio_routes import studio_bp
     from routes.sentence_routes import sentence_bp
     from routes.translation_routes import translation_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(camera_bp)
     app.register_blueprint(overview_bp)
-    app.register_blueprint(mouse_bp)
     app.register_blueprint(drawing_bp)
     app.register_blueprint(alphabet_bp)
     app.register_blueprint(recognition_bp)
+    app.register_blueprint(studio_bp)
     app.register_blueprint(sentence_bp)
     app.register_blueprint(translation_bp)
 

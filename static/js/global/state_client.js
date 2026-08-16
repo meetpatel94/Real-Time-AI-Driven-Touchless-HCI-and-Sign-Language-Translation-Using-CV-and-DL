@@ -69,28 +69,34 @@ class StateClient {
         const fpsBadge = document.getElementById('status-fps');
         const handBadge = document.getElementById('status-hand');
         const gestureBadge = document.getElementById('status-gesture');
-        const stateBadge = document.getElementById('status-interaction');
-        const dwellContainer = document.getElementById('dwell-container');
-        const dwellBar = document.getElementById('dwell-progress-bar');
-        const dwellText = document.getElementById('dwell-progress-text');
 
         if (camBtn) {
+            const camIcon = camBtn.querySelector('.btn-toggle-icon');
+            const camText = camBtn.querySelector('.btn-toggle-text');
+
             if (state.camera_enabled) {
                 camBtn.classList.add('active');
-                camBtn.innerHTML = '● CAMERA ON';
+                if (camIcon) camIcon.innerText = '●';
+                if (camText) camText.innerText = 'CAMERA ON';
             } else {
                 camBtn.classList.remove('active');
-                camBtn.innerHTML = '○ CAMERA OFF';
+                if (camIcon) camIcon.innerText = '○';
+                if (camText) camText.innerText = 'CAMERA OFF';
             }
         }
 
         if (gestureBtn) {
+            const gestureIcon = gestureBtn.querySelector('.btn-toggle-icon');
+            const gestureText = gestureBtn.querySelector('.btn-toggle-text');
+
             if (state.gesture_enabled) {
                 gestureBtn.classList.add('active');
-                gestureBtn.innerHTML = '✋ AIR GESTURE ON';
+                if (gestureIcon) gestureIcon.innerText = '✋';
+                if (gestureText) gestureText.innerText = 'AIR GESTURE ON';
             } else {
                 gestureBtn.classList.remove('active');
-                gestureBtn.innerHTML = '🛑 AIR GESTURE OFF';
+                if (gestureIcon) gestureIcon.innerText = '🛑';
+                if (gestureText) gestureText.innerText = 'AIR GESTURE OFF';
             }
         }
 
@@ -100,26 +106,8 @@ class StateClient {
             handBadge.className = `badge ${state.hand_detected ? 'badge-success' : 'badge-danger'}`;
         }
         if (gestureBadge && state.gesture) gestureBadge.innerText = state.gesture;
-        if (stateBadge && state.interaction_state) stateBadge.innerText = state.interaction_state;
-
-        // Dwell UI bar
-        if (dwellBar && dwellContainer && dwellText) {
-            if (state.dwell_active || state.dwell_progress > 0) {
-                dwellContainer.style.opacity = '1';
-                dwellBar.style.width = `${state.dwell_progress}%`;
-                dwellText.innerText = `${state.dwell_progress}%`;
-                if (state.dwell_progress >= 100) {
-                    dwellBar.style.backgroundColor = '#22c55e';
-                } else {
-                    dwellBar.style.backgroundColor = '#38bdf8';
-                }
-            } else {
-                dwellContainer.style.opacity = '0';
-                dwellBar.style.width = '0%';
-                dwellText.innerText = '0%';
-            }
-        }
     }
+
 }
 
 document.addEventListener('DOMContentLoaded', () => {

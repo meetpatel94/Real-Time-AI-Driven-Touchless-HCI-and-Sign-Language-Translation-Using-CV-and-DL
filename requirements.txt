@@ -4,3 +4,8 @@ mediapipe==0.10.11
 pyautogui==0.9.54
 numpy==1.26.4
 tensorflow>=2.15.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+pandas>=2.2.0
+scikit-learn>=1.4.0
+Pillow>=10.2.0

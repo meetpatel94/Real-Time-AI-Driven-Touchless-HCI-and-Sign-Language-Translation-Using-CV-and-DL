@@ -1,0 +1,9 @@
+========================================
+TOP CONFUSED CLASSES (Actual -> Predicted)
+========================================
+
+ 1. U → L : 24 instances
+ 2. Y → S : 4 instances
+ 3. W → B : 3 instances
+ 4. X → R : 2 instances
+ 5. V → C : 1 instances

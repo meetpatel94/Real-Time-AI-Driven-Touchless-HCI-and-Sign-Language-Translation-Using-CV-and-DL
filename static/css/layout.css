@@ -1,7 +1,14 @@
+:root {
+    --sidebar-width: 250px;
+    --sidebar-collapsed-width: 68px;
+    --header-height: 60px;
+}
+
 #app-container {
     display: flex;
     width: 100vw;
     height: 100vh;
+    overflow: hidden;
 }
 
 #sidebar {
@@ -11,8 +18,15 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1.5rem 1rem;
+    padding: 1rem 0.75rem;
     z-index: 100;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+}
+
+#sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+    padding: 1rem 0.5rem;
 }
 
 #main-wrapper {
@@ -20,6 +34,8 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-width: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #header {
@@ -29,11 +45,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 2rem;
+    padding: 0 1.5rem;
+    flex-shrink: 0;
 }
 
 #content-area {
     flex: 1;
-    padding: 2rem;
+    padding: 1.25rem;
     overflow-y: auto;
 }
