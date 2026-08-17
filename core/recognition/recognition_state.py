@@ -2,9 +2,10 @@ import threading
 import time
 from collections import deque
 from typing import Dict, Any
+from config import Config
 
 class RecognitionState:
-    """Thread-safe state container handling dual-hand live recognition, stats, and sentence compilation."""
+    """Thread-safe state container handling dual-hand live recognition, debounce confirmation, and sentence compiling."""
     _instance = None
     _lock = threading.Lock()
 
@@ -27,10 +28,15 @@ class RecognitionState:
         self.confidence = 0.0
         
         self.right_gesture = "NONE"
-        self.fist_active = False
-        self.fist_triggered = False
-        self.sentence = ""
         
+        # Debounce State Tracker
+        self.fist_frame_counter = 0
+        self.is_fist_locked = False
+        self.last_commit_timestamp = 0.0
+        self.last_confirmed_letter = ""
+        self.confirmation_active_until = 0.0
+        
+        self.sentence = ""
         self.inference_fps = 0
         self.camera_fps = 0
         self.model_status = "INITIALIZING"
@@ -47,7 +53,7 @@ class RecognitionState:
             self.raw_label = raw_label
             self.raw_confidence = raw_conf
             
-            if stable_label != self.current_label and stable_label not in ["NONE", "UNKNOWN"]:
+            if stable_label != self.current_label and stable_label not in ["NONE", "UNKNOWN", "--"]:
                 self.recent_predictions.appendleft({
                     "label": stable_label,
                     "confidence": stable_conf,
@@ -61,35 +67,59 @@ class RecognitionState:
         with self.lock:
             self.left_hand_detected = left
             self.right_hand_detected = right
+            if not left:
+                self.current_label = "NONE"
+                self.confidence = 0.0
 
     def set_right_gesture(self, gesture: str):
         with self.lock:
             self.right_gesture = gesture
 
-    def commit_current_sign(self) -> bool:
-        """Edge-triggered sentence appending (Fist OPEN -> CLOSED)."""
+    def process_right_hand_fist(self, is_fist_detected: bool, confidence_threshold: float = 70.0) -> Dict[str, Any]:
         with self.lock:
-            if self.fist_triggered:
-                return False  # Already committed in this fist cycle
-                
-            self.fist_active = True
-            self.fist_triggered = True
-            
-            # Commit only stable, valid predictions
-            if self.current_label not in ["NONE", "UNKNOWN"]:
-                self.sentence += self.current_label
-                return True
-        return False
+            now = time.time()
+            committed = False
 
-    def release_fist(self):
-        """Resets the commit trigger (CLOSED -> OPEN)."""
+            if is_fist_detected:
+                self.fist_frame_counter += 1
+                
+                if (
+                    self.fist_frame_counter >= Config.FIST_CONSECUTIVE_FRAMES
+                    and not self.is_fist_locked
+                    and (now - self.last_commit_timestamp) >= Config.FIST_COOLDOWN_SECONDS
+                ):
+                    if (
+                        self.left_hand_detected
+                        and self.current_label not in ["NONE", "UNKNOWN", "--"]
+                        and self.confidence >= confidence_threshold
+                    ):
+                        self.sentence += self.current_label
+                        self.last_confirmed_letter = self.current_label
+                        self.last_commit_timestamp = now
+                        self.confirmation_active_until = now + 1.2
+                        self.is_fist_locked = True
+                        committed = True
+            else:
+                self.fist_frame_counter = 0
+                self.is_fist_locked = False
+
+            is_confirming = (self.fist_frame_counter > 0 and not self.is_fist_locked)
+
+            return {
+                "committed": committed,
+                "is_confirming": is_confirming,
+                "confirmed_active": now < self.confirmation_active_until,
+                "last_confirmed": self.last_confirmed_letter
+            }
+
+    def set_sentence(self, new_text: str):
         with self.lock:
-            self.fist_active = False
-            self.fist_triggered = False
+            self.sentence = new_text
 
     def clear_sentence(self):
         with self.lock:
             self.sentence = ""
+            self.last_confirmed_letter = ""
 
     def backspace_sentence(self):
         with self.lock:
@@ -108,15 +138,19 @@ class RecognitionState:
 
     def get_snapshot(self) -> Dict[str, Any]:
         with self.lock:
+            now = time.time()
             return {
                 "left_hand_detected": self.left_hand_detected,
                 "right_hand_detected": self.right_hand_detected,
-                "hand_detected": self.left_hand_detected,  # Preserves legacy single-hand frontend checks
+                "hand_detected": self.left_hand_detected,
                 "raw_prediction": self.raw_label,
                 "raw_confidence": self.raw_confidence,
                 "prediction": self.current_label,
                 "confidence": self.confidence,
                 "right_gesture": self.right_gesture,
+                "is_confirming": (self.fist_frame_counter > 0 and not self.is_fist_locked),
+                "last_confirmed": self.last_confirmed_letter,
+                "confirmed_active": now < self.confirmation_active_until,
                 "sentence": self.sentence,
                 "inference_fps": self.inference_fps,
                 "camera_fps": self.camera_fps,

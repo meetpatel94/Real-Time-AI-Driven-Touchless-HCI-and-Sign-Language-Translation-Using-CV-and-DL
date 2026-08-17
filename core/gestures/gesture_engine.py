@@ -9,6 +9,7 @@ from core.mouse.cursor_mapper import CursorMapper
 from core.mouse.cursor_smoother import CursorSmoother
 from core.mouse.mouse_controller import mouse_controller
 from core.mouse.dwell_controller import dwell_controller
+from core.mouse.scroll_controller import scroll_controller
 from core.sign_language.dataset_collector import dataset_collector
 from core.recognition.inference_worker import inference_worker
 from core.recognition.recognition_state import recognition_state
@@ -37,19 +38,18 @@ class GestureEngine:
         self.mp_draw = mp.solutions.drawing_utils
         self.mp_styles = mp.solutions.drawing_styles
         self.hands = None
-        self.last_log_time = 0.0
 
     def start(self) -> None:
         with self._lock:
             if self.is_running:
                 return
-            logger.info("Starting Global Gesture Engine (Dual-Hand Mode, max_num_hands=2)...")
+            logger.info("Starting Global Gesture Engine (Dual-Hand + Scroll Mode)...")
             self.hands = self.mp_hands.Hands(
                 static_image_mode=False,
                 max_num_hands=2,
                 model_complexity=0,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
+                min_detection_confidence=0.55,
+                min_tracking_confidence=0.55
             )
             self.is_running = True
             self.thread = threading.Thread(target=self._process_loop, daemon=True)
@@ -71,8 +71,10 @@ class GestureEngine:
             if not state["camera_enabled"]:
                 self.smoother.reset()
                 dwell_controller.reset()
+                scroll_controller.reset()
                 inference_worker.notify_no_hand()
                 recognition_state.set_hand_presence(False, False)
+                recognition_state.process_right_hand_fist(False)
                 time.sleep(0.05)
                 continue
 
@@ -91,33 +93,21 @@ class GestureEngine:
 
             left_hand = None
             right_hand = None
-            hand_count = 0
-            debug_info = []
 
             if results.multi_hand_landmarks and results.multi_handedness:
-                hand_count = len(results.multi_hand_landmarks)
-                
                 for idx, hand_handedness in enumerate(results.multi_handedness):
                     classification = hand_handedness.classification[0].label
-                    score = hand_handedness.classification[0].score
                     landmarks = results.multi_hand_landmarks[idx]
 
-                    # IMPORTANT MIRRORING FIX:
-                    # Because camera_manager horizontally flips the raw frame (cv2.flip(frame, 1)):
-                    # MediaPipe "Left" label == User's Physical LEFT Hand
-                    # MediaPipe "Right" label == User's Physical RIGHT Hand
                     if classification == "Left":
                         left_hand = landmarks
-                        hand_role = "LEFT (SIGN)"
-                        box_color = (248, 189, 56)  # Cyan/Blue
+                        box_color = (248, 189, 56)  # Cyan
+                        tag = "LEFT (SIGN)"
                     else:
                         right_hand = landmarks
-                        hand_role = "RIGHT (MOUSE)"
                         box_color = (34, 197, 94)   # Green
+                        tag = "RIGHT (MOUSE)"
 
-                    debug_info.append(f"{classification} ({score*100:.0f}%) -> {hand_role}")
-
-                    # Draw visual landmarks and connection skeleton
                     self.mp_draw.draw_landmarks(
                         display_frame,
                         landmarks,
@@ -126,39 +116,19 @@ class GestureEngine:
                         self.mp_styles.get_default_hand_connections_style()
                     )
 
-                    # Draw Bounding Box and Role Tag for visual confirmation
                     x_coords = [lm.x * frame_w for lm in landmarks.landmark]
                     y_coords = [lm.y * frame_h for lm in landmarks.landmark]
                     bx1, bx2 = max(0, int(min(x_coords) - 10)), min(frame_w, int(max(x_coords) + 10))
                     by1, by2 = max(0, int(min(y_coords) - 10)), min(frame_h, int(max(y_coords) + 10))
                     
                     cv2.rectangle(display_frame, (bx1, by1), (bx2, by2), box_color, 2)
-                    cv2.putText(
-                        display_frame,
-                        hand_role,
-                        (bx1, max(20, by1 - 8)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55,
-                        box_color,
-                        2,
-                        cv2.LINE_AA
-                    )
+                    cv2.putText(display_frame, tag, (bx1, max(20, by1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, box_color, 2, cv2.LINE_AA)
 
-            # Periodic Rate-Limited Terminal Logging (Every 1.5 seconds)
-            now = time.time()
-            if (now - self.last_log_time) >= 1.5 and hand_count > 0:
-                self.last_log_time = now
-                logger.info(
-                    f"[Hand Tracker] Count: {hand_count} | Details: {' | '.join(debug_info)} | "
-                    f"Left Hand Found: {left_hand is not None} | Right Hand Found: {right_hand is not None}"
-                )
-
-            # Update shared presence flags
             recognition_state.set_hand_presence(left_hand is not None, right_hand is not None)
             active_mod = state.get("active_module")
 
             # --------------------------------------------------
-            # 1. LEFT HAND PIPELINE (SIGN LANGUAGE RECOGNITION)
+            # 1. LEFT HAND PIPELINE (SIGN RECOGNITION ONLY)
             # --------------------------------------------------
             if left_hand:
                 if active_mod == "alphabet":
@@ -170,7 +140,7 @@ class GestureEngine:
                     inference_worker.notify_no_hand()
 
             # --------------------------------------------------
-            # 2. RIGHT HAND PIPELINE (AIR MOUSE / FIST COMMIT)
+            # 2. RIGHT HAND PIPELINE (AIR MOUSE + FIST + SCROLL)
             # --------------------------------------------------
             if right_hand and state["gesture_enabled"]:
                 gesture = self.classifier.classify(right_hand, frame.shape[:2])
@@ -179,11 +149,18 @@ class GestureEngine:
                 index_tip = right_hand.landmark[8]
                 raw_x, raw_y = self.mapper.map_coordinates(index_tip.x, index_tip.y)
 
-                if gesture == GestureType.CLOSED_FIST:
+                is_fist = (gesture == GestureType.CLOSED_FIST)
+                fist_status = recognition_state.process_right_hand_fist(is_fist)
+                
+                # Check deliberate vertical swipe scrolling
+                scroll_controller.process_hand(right_hand, is_fist)
+
+                if fist_status["committed"]:
+                    logger.info(f"Fist Confirmation -> Appended letter: '{recognition_state.last_confirmed_letter}'")
+
+                if is_fist:
                     dwell_controller.reset()
                     self.smoother.reset()
-                    recognition_state.commit_current_sign()
-                    
                     global_state.update_state({
                         "hand_detected": True,
                         "gesture": gesture.value,
@@ -191,8 +168,6 @@ class GestureEngine:
                         "interaction_state": InteractionState.COMMITTING.value
                     })
                 else:
-                    recognition_state.release_fist()
-
                     if gesture == GestureType.ONE_FINGER:
                         dwell_controller.reset()
                         smooth_x, smooth_y = self.smoother.smooth(raw_x, raw_y)
@@ -226,10 +201,11 @@ class GestureEngine:
                             "interaction_state": InteractionState.IDLE.value
                         })
             else:
-                recognition_state.release_fist()
+                recognition_state.process_right_hand_fist(False)
                 recognition_state.set_right_gesture("NONE")
                 dwell_controller.reset()
                 self.smoother.reset()
+                scroll_controller.reset()
                 global_state.update_state({
                     "hand_detected": (left_hand is not None or right_hand is not None),
                     "gesture": GestureType.NONE.value,

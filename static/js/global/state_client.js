@@ -1,11 +1,16 @@
+/**
+ * Global State, Sensitivity & Scroll Controls Client
+ */
 class StateClient {
     constructor() {
-        this.pollInterval = 100;
+        this.pollInterval = 500;
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.initSensitivity();
+        this.initScrollSensitivity();
         this.startPolling();
     }
 
@@ -17,6 +22,60 @@ class StateClient {
         if (gestureBtn) gestureBtn.addEventListener('click', () => this.toggleGesture());
     }
 
+    initSensitivity() {
+        const slider = document.getElementById('slider-cursor-sensitivity');
+        const display = document.getElementById('sensitivity-display');
+
+        const saved = localStorage.getItem('cursor_sensitivity') || '50';
+        if (slider && display) {
+            slider.value = saved;
+            display.innerText = `${saved}%`;
+            this.sendSensitivity(parseFloat(saved) / 100.0);
+
+            slider.addEventListener('input', (e) => {
+                const val = e.target.value;
+                display.innerText = `${val}%`;
+                localStorage.setItem('cursor_sensitivity', val);
+                this.sendSensitivity(parseFloat(val) / 100.0);
+            });
+        }
+    }
+
+    initScrollSensitivity() {
+        const select = document.getElementById('select-scroll-sensitivity');
+        const saved = localStorage.getItem('scroll_sensitivity') || 'medium';
+        if (select) {
+            select.value = saved;
+            this.sendScrollSensitivity(saved);
+
+            select.addEventListener('change', (e) => {
+                const level = e.target.value;
+                localStorage.setItem('scroll_sensitivity', level);
+                this.sendScrollSensitivity(level);
+            });
+        }
+    }
+
+    async sendSensitivity(val) {
+        try {
+            await fetch('/api/mouse/sensitivity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sensitivity: val })
+            });
+        } catch (err) {}
+    }
+
+    async sendScrollSensitivity(level) {
+        try {
+            await fetch('/api/mouse/scroll-sensitivity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level })
+            });
+        } catch (err) {}
+    }
+
     async toggleCamera() {
         try {
             const res = await fetch('/api/camera/toggle', {
@@ -25,14 +84,8 @@ class StateClient {
                 body: JSON.stringify({})
             });
             const data = await res.json();
-            if (!res.ok || data.status === 'error') {
-                alert(data.message || 'Camera error');
-            } else {
-                this.updateUI(data);
-            }
-        } catch (err) {
-            console.error('Toggle camera error:', err);
-        }
+            this.updateUI(data);
+        } catch (err) {}
     }
 
     async toggleGesture() {
@@ -43,14 +96,8 @@ class StateClient {
                 body: JSON.stringify({})
             });
             const data = await res.json();
-            if (!res.ok || data.status === 'error') {
-                alert(data.message || 'Gesture error');
-            } else {
-                this.updateUI(data);
-            }
-        } catch (err) {
-            console.error('Toggle gesture error:', err);
-        }
+            this.updateUI(data);
+        } catch (err) {}
     }
 
     startPolling() {
@@ -107,7 +154,6 @@ class StateClient {
         }
         if (gestureBadge && state.gesture) gestureBadge.innerText = state.gesture;
     }
-
 }
 
 document.addEventListener('DOMContentLoaded', () => {

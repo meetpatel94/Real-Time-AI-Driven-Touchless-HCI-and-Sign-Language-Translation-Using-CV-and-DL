@@ -2,12 +2,13 @@ from flask import Blueprint, Response, jsonify, request
 import time
 from core.camera.camera_manager import camera_manager
 from core.camera.frame_processor import FrameProcessor
+from core.gestures.gesture_engine import gesture_engine
+from core.mouse.scroll_controller import scroll_controller
 from services.state_service import global_state
 
 camera_bp = Blueprint("camera", __name__)
 
 def generate_frames():
-    """Streaming generator that yields frames at 30 FPS without blocking the capture thread."""
     while True:
         state = global_state.get_state()
         if state["camera_enabled"]:
@@ -22,7 +23,6 @@ def generate_frames():
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
         
-        # 30 FPS output throttling
         time.sleep(0.033)
 
 @camera_bp.route("/video_feed")
@@ -53,6 +53,20 @@ def toggle_gesture():
     global_state.set_gesture_state(target_state)
 
     return jsonify({"status": "success", "gesture_enabled": global_state.get_state()["gesture_enabled"]})
+
+@camera_bp.route("/api/mouse/sensitivity", methods=["POST"])
+def update_sensitivity():
+    data = request.get_json() or {}
+    val = float(data.get("sensitivity", 0.50))
+    gesture_engine.mapper.set_sensitivity(val)
+    return jsonify({"status": "success", "sensitivity": val})
+
+@camera_bp.route("/api/mouse/scroll-sensitivity", methods=["POST"])
+def update_scroll_sensitivity():
+    data = request.get_json() or {}
+    level = data.get("level", "medium")
+    scroll_controller.set_sensitivity(level)
+    return jsonify({"status": "success", "level": level})
 
 @camera_bp.route("/api/state", methods=["GET"])
 def get_state():

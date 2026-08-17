@@ -5,7 +5,7 @@ pyautogui.PAUSE = 0.0
 pyautogui.FAILSAFE = False
 
 class MouseController:
-    """Controls OS cursor positioning and click actuation."""
+    """Controls OS cursor positioning, left clicking, and webpage scrolling."""
 
     def __init__(self):
         self.screen_width, self.screen_height = pyautogui.size()
@@ -28,6 +28,18 @@ class MouseController:
             return True
         except Exception as e:
             logger.error(f"Error executing OS click: {e}")
+            return False
+
+    def scroll(self, amount: int) -> bool:
+        """
+        Positive amount = Scroll UP.
+        Negative amount = Scroll DOWN.
+        """
+        try:
+            pyautogui.scroll(int(amount), _pause=False)
+            return True
+        except Exception as e:
+            logger.error(f"Error executing OS scroll: {e}")
             return False
 
 mouse_controller = MouseController()

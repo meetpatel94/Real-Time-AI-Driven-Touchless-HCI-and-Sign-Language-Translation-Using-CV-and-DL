@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/Hide.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -22,43 +23,43 @@
                 </div>
                 <nav>
                     <ul class="nav-list">
-                        <li class="nav-item" data-tooltip="Overview">
+                        <li class="nav-item Overview" data-tooltip="Overview">
                             <a href="{{ url_for('overview.overview') }}">
                                 <span class="nav-icon">🏠</span>
                                 <span class="nav-label">Overview</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Air Drawing">
+                        <li class="nav-item Air-Drawing" data-tooltip="Air Drawing">
                             <a href="{{ url_for('drawing.drawing') }}">
                                 <span class="nav-icon">🎨</span>
                                 <span class="nav-label">Air Drawing</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Sign Alphabet">
+                        <li class="nav-item Sign-Alphabet" data-tooltip="Sign Alphabet">
                             <a href="{{ url_for('alphabet.alphabet') }}">
                                 <span class="nav-icon">🔤</span>
                                 <span class="nav-label">Sign Alphabet</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Sign Recognition">
+                        <li class="nav-item Sign-Recognition" data-tooltip="Sign Recognition">
                             <a href="{{ url_for('recognition.recognition') }}">
                                 <span class="nav-icon">🎯</span>
                                 <span class="nav-label">Sign Recognition</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Sign Language Studio">
+                        <li class="nav-item Sign-Language-Studio" data-tooltip="Sign Language Studio">
                             <a href="{{ url_for('studio.sign_language_studio') }}">
                                 <span class="nav-icon">🤟</span>
                                 <span class="nav-label">Studio</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Sentence Builder">
+                        <li class="nav-item Sentence-Builder" data-tooltip="Sentence Builder">
                             <a href="{{ url_for('sentence.sentence') }}">
                                 <span class="nav-icon">📝</span>
                                 <span class="nav-label">Sentence Builder</span>
                             </a>
                         </li>
-                        <li class="nav-item" data-tooltip="Translation">
+                        <li class="nav-item Translation" data-tooltip="Translation">
                             <a href="{{ url_for('translation.translation') }}">
                                 <span class="nav-icon">🌐</span>
                                 <span class="nav-label">Translation</span>
@@ -68,8 +69,27 @@
                 </nav>
             </div>
 
-            <!-- SIDEBAR CONTROLS -->
+            <!-- SIDEBAR CONTROLS & SENSITIVITY SETTINGS -->
             <div class="sidebar-controls">
+                <div class="control-group sensitivity-group" data-tooltip="Cursor Speed">
+                    <div class="sensitivity-header">
+                        <span class="control-label">Cursor Speed</span>
+                        <span id="sensitivity-display" class="sensitivity-val">50%</span>
+                    </div>
+                    <input type="range" id="slider-cursor-sensitivity" min="10" max="100" value="50" step="5" class="slider-sensitivity">
+                </div>
+
+                <div class="control-group scroll-sensitivity-group" data-tooltip="Scroll Sensitivity">
+                    <div class="sensitivity-header">
+                        <span class="control-label">Scroll Speed</span>
+                    </div>
+                    <select id="select-scroll-sensitivity" class="select-scroll-level">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+
                 <div class="control-group" data-tooltip="Camera ON/OFF">
                     <span class="control-label">Camera</span>
                     <button id="btn-toggle-camera" class="btn-toggle">

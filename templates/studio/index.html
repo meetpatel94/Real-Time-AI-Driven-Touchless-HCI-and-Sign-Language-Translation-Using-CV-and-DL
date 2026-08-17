@@ -18,7 +18,7 @@
         </div>
     </div>
 
-    <!-- MAIN COMPACT WORKSPACE: CAMERA & CURRENT SIGN (LEFT) + SIGN SENTENCE & SUGGESTIONS (RIGHT) -->
+    <!-- MAIN COMPACT WORKSPACE -->
     <div class="studio-main-row">
         <!-- LEFT: COMPACT CAMERA PREVIEW WITH FLOATING CURRENT SIGN OVERLAY -->
         <div class="card camera-workspace-card">
@@ -36,7 +36,7 @@
                     </div>
                 </div>
 
-                <!-- DYNAMIC COMPACT GLASS OVERLAY: CURRENT SIGN & CONFIDENCE -->
+                <!-- FLOATING GLASS OVERLAY: CURRENT SIGN -->
                 <div class="camera-sign-overlay">
                     <span class="overlay-eyebrow">CURRENT SIGN</span>
                     <div class="overlay-sign-char" id="display-current-sign">--</div>
@@ -62,12 +62,12 @@
                 <span class="badge badge-live">● LIVE INPUT</span>
             </div>
 
-            <textarea id="sentence-input-area" class="sentence-compact-textarea" readonly>HELLO WORLD</textarea>
+            <textarea id="sentence-input-area" class="sentence-compact-textarea" placeholder="Start signing..."></textarea>
 
             <div class="sentence-meta-row">
                 <div class="sentence-counts">
-                    <span>Characters: <strong id="char-count">11</strong></span>
-                    <span>Words: <strong id="word-count">2</strong></span>
+                    <span>Characters: <strong id="char-count">0</strong></span>
+                    <span>Words: <strong id="word-count">0</strong></span>
                 </div>
                 <div class="btn-group-compact">
                     <button id="btn-clear-sentence" class="btn-action-xs btn-danger">CLEAR</button>
@@ -92,7 +92,7 @@
     <div class="studio-bottom-row">
         <div class="card translation-compact-card">
             <div class="translation-top-controls">
-                <h3 class="card-title-sm">Translation</h3>
+                <h3 class="card-title-sm">Real-Time Translation</h3>
                 <div class="translation-actions-wrap">
                     <label for="select-target-lang" class="control-label-sm">Translate To:</label>
                     <select id="select-target-lang" class="form-select-sm">
@@ -100,17 +100,18 @@
                         <option value="Hindi">Hindi</option>
                         <option value="Gujarati">Gujarati</option>
                     </select>
-                    <button id="btn-trigger-translate" class="btn-action-xs btn-primary">TRANSLATE</button>
+                    <button id="btn-trigger-translate" class="btn-action-xs btn-primary" style="display: none;">TRANSLATE</button>
                 </div>
             </div>
 
             <div class="translated-output-compact" id="translated-output-box">
-                Hello World
+                Start signing...
             </div>
 
             <div class="translation-footer-compact">
                 <div class="meta-item"><span>Source:</span> <strong>Sign Language</strong></div>
                 <div class="meta-item"><span>Target:</span> <strong id="meta-target-lang">English</strong></div>
+                <div class="meta-item"><span>Status:</span> <strong id="translation-status-text" class="text-accent-green">READY</strong></div>
                 <div class="quick-links">
                     <button id="qa-copy" class="btn-link">📋 Copy Text</button>
                     <button id="qa-clear" class="btn-link">🗑 Clear All</button>

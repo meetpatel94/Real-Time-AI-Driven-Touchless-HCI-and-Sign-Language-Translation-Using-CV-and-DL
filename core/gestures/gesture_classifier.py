@@ -3,7 +3,7 @@ from typing import Tuple
 from core.gestures.gesture_state import GestureType
 
 class GestureClassifier:
-    """Classifies geometric MediaPipe hand landmarks for cursor control and fist detection."""
+    """Classifies geometric MediaPipe hand landmarks for cursor control and edge-triggered fist confirmation."""
 
     def _is_extended(self, tip, pip, mcp, wrist) -> bool:
         dist_tip = math.hypot(tip.x - wrist.x, tip.y - wrist.y)
@@ -12,7 +12,6 @@ class GestureClassifier:
         return dist_tip > dist_pip and dist_pip > dist_mcp and tip.y < pip.y
 
     def _is_folded(self, tip, pip, wrist) -> bool:
-        """Determines if a finger is tightly folded toward the palm."""
         dist_tip = math.hypot(tip.x - wrist.x, tip.y - wrist.y)
         dist_pip = math.hypot(pip.x - wrist.x, pip.y - wrist.y)
         return dist_tip < dist_pip
@@ -37,10 +36,11 @@ class GestureClassifier:
         extended_count = sum([index_ext, middle_ext, ring_ext, pinky_ext])
         folded_count = sum([index_fold, middle_fold, ring_fold, pinky_fold])
 
-        # Strict Fist Condition: At least 3 fingers tightly folded, none fully extended
+        # Strict Geometric Fist: At least 3 fingers folded toward palm with 0 fingers extended
         if folded_count >= 3 and extended_count == 0:
             return GestureType.CLOSED_FIST
 
+        # Air Mouse Gestures
         if extended_count == 1 and index_ext:
             return GestureType.ONE_FINGER
         elif extended_count == 2 and index_ext and middle_ext:
