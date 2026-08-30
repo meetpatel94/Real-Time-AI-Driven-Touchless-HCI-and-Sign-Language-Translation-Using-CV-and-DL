@@ -3,6 +3,7 @@ import time
 import cv2
 import mediapipe as mp
 from core.camera.camera_manager import camera_manager
+from core.adaptive.observation_builder import GestureObservationBuilder
 from core.gestures.gesture_classifier import GestureClassifier
 from core.gestures.gesture_state import GestureType, InteractionState
 from core.mouse.cursor_mapper import CursorMapper
@@ -13,8 +14,10 @@ from core.mouse.scroll_controller import scroll_controller
 from core.sign_language.dataset_collector import dataset_collector
 from core.recognition.inference_worker import inference_worker
 from core.recognition.recognition_state import recognition_state
+from services.adaptive_intent_service import adaptive_intent_service
 from services.logging_service import logger
 from services.state_service import global_state
+from services.user_profile_service import user_profile_service
 
 class GestureEngine:
     """Master pipeline: Single camera source -> MediaPipe -> Independent Left/Right Hand routing."""
@@ -32,12 +35,17 @@ class GestureEngine:
         self.is_running = False
         self.thread = None
         self.classifier = GestureClassifier()
+        # Adaptive observation is an additive read-only layer. The existing
+        # controllers below remain responsible for executing OS actions.
+        self.observation_builder = GestureObservationBuilder(self.classifier)
         self.mapper = CursorMapper()
         self.smoother = CursorSmoother()
         self.mp_hands = mp.solutions.hands
         self.mp_draw = mp.solutions.drawing_utils
         self.mp_styles = mp.solutions.drawing_styles
         self.hands = None
+        self._adaptive_camera_active = False
+        self._adaptive_error_logged = False
 
     def start(self) -> None:
         with self._lock:
@@ -51,6 +59,14 @@ class GestureEngine:
                 min_detection_confidence=0.55,
                 min_tracking_confidence=0.55
             )
+            try:
+                profile = user_profile_service.get_active_profile()
+                self.mapper.set_sensitivity(profile.cursor_sensitivity)
+                scroll_controller.set_sensitivity(profile.scroll_sensitivity)
+            except Exception as exc:
+                # Profile persistence is optional at runtime; never prevent the
+                # established camera/gesture engine from starting.
+                logger.warning(f"Adaptive profile could not be loaded at startup: {exc}")
             self.is_running = True
             self.thread = threading.Thread(target=self._process_loop, daemon=True)
             self.thread.start()
@@ -75,8 +91,21 @@ class GestureEngine:
                 inference_worker.notify_no_hand()
                 recognition_state.set_hand_presence(False, False)
                 recognition_state.process_right_hand_fist(False)
+                if self._adaptive_camera_active:
+                    self.observation_builder.reset()
+                    try:
+                        adaptive_intent_service.reset()
+                    except Exception as exc:
+                        if not self._adaptive_error_logged:
+                            logger.warning(f"Adaptive runtime reset skipped: {exc}")
+                            self._adaptive_error_logged = True
+                    self._adaptive_camera_active = False
                 time.sleep(0.05)
                 continue
+
+            if not self._adaptive_camera_active:
+                self.observation_builder.reset()
+                self._adaptive_camera_active = True
 
             frame = camera_manager.get_raw_frame()
             if frame is None:
@@ -128,6 +157,58 @@ class GestureEngine:
             active_mod = state.get("active_module")
 
             # --------------------------------------------------
+            # ADAPTIVE OBSERVATION LAYER
+            # --------------------------------------------------
+            # Classify for observation even when Air Gesture execution is off;
+            # no controller is called until the legacy gesture_enabled gate below.
+            right_gesture = (
+                self.classifier.classify(right_hand, frame.shape[:2])
+                if right_hand else GestureType.NONE
+            )
+            if right_hand:
+                right_observation = self.observation_builder.build(
+                    "right", right_hand, right_gesture
+                )
+            else:
+                self.observation_builder.reset_hand("right")
+                right_observation = None
+
+            if left_hand:
+                left_observation = self.observation_builder.build(
+                    "left", left_hand, GestureType.NONE
+                )
+            else:
+                self.observation_builder.reset_hand("left")
+                left_observation = None
+
+            sign_snapshot = recognition_state.get_snapshot()
+            try:
+                profile = user_profile_service.get_active_profile()
+                adaptive_intent_service.process_frame(
+                    right_observation=right_observation,
+                    left_observation=left_observation,
+                    sign_snapshot=sign_snapshot,
+                    profile=profile,
+                    context={
+                        "active_module": active_mod,
+                        "camera_enabled": True,
+                        "gesture_enabled": state["gesture_enabled"],
+                        "interaction_state": state.get("interaction_state", "IDLE"),
+                        "left_hand_detected": left_hand is not None,
+                        "right_hand_detected": right_hand is not None,
+                        "sentence_active": bool(str(sign_snapshot.get("sentence", "")).strip()),
+                        "legacy_pipeline_active": True,
+                    },
+                )
+                self._adaptive_error_logged = False
+            except Exception as exc:
+                # The adaptive layer must fail open: existing MediaPipe,
+                # inference, cursor, click and scroll paths continue untouched.
+                if not self._adaptive_error_logged:
+                    logger.warning(f"Adaptive interpretation skipped: {exc}")
+                    self._adaptive_error_logged = True
+
+            # --------------------------------------------------
             # 1. LEFT HAND PIPELINE (SIGN RECOGNITION ONLY)
             # --------------------------------------------------
             if left_hand:
@@ -143,7 +224,7 @@ class GestureEngine:
             # 2. RIGHT HAND PIPELINE (AIR MOUSE + FIST + SCROLL)
             # --------------------------------------------------
             if right_hand and state["gesture_enabled"]:
-                gesture = self.classifier.classify(right_hand, frame.shape[:2])
+                gesture = right_gesture
                 recognition_state.set_right_gesture(gesture.value)
 
                 index_tip = right_hand.landmark[8]

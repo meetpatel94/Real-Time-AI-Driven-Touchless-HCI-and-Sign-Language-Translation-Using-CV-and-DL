@@ -1,6 +1,7 @@
 import os
 
 class Config:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     SECRET_KEY = os.environ.get("SECRET_KEY", "gestureforge-ai-secret-key-2026")
     CAMERA_INDEX = 0
     FRAME_WIDTH = 640
@@ -44,8 +45,20 @@ class Config:
     TRAINING_VAL_SPLIT = 0.20
     TRAINING_LEARNING_RATE = 0.001
 
-    RECOGNITION_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "gesture_model.h5")
+    RECOGNITION_MODEL_PATH = os.path.join(BASE_DIR, "models", "gesture_model.h5")
     RECOGNITION_ALT_MODEL_PATH = os.path.join(MODEL_DIR, "sign_alphabet_model.keras")
-    LABEL_ENCODER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "label_encoder.pkl")
+    LABEL_ENCODER_PATH = os.path.join(BASE_DIR, "models", "label_encoder.pkl")
     CLASS_NAMES_JSON_PATH = os.path.join(MODEL_DIR, "class_names.json")
     RECOGNITION_CONFIDENCE_THRESHOLD = 0.70
+
+    # Human-adaptive profile persistence. SQLite keeps the local application
+    # dependency-free; a repository adapter can be swapped for MongoDB later
+    # if this becomes a multi-user deployment.
+    DEFAULT_PROFILE_ID = os.environ.get("GESTUREFORGE_PROFILE_ID", "local-user")
+    PROFILE_DB_PATH = os.environ.get(
+        "GESTUREFORGE_PROFILE_DB_PATH",
+        os.path.join(BASE_DIR, "data", "gestureforge.sqlite3")
+    )
+    ADAPTIVE_UNKNOWN_MIN_SAMPLES = 3
+    ADAPTIVE_UNKNOWN_HOLD_SECONDS = 0.18
+    ADAPTIVE_HISTORY_LIMIT = 40

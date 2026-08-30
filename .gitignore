@@ -83,6 +83,9 @@ data/dataset/*
 data/exports/*
 data/raw/
 data/processed/
+data/*.sqlite3
+data/*.sqlite3-wal
+data/*.sqlite3-shm
 dataset/
 datasets/
 uploads/

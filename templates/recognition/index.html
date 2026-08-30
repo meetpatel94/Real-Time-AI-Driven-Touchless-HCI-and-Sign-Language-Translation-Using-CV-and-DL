@@ -109,6 +109,35 @@
                 <div style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0;">No stable predictions recorded yet.</div>
             </div>
         </div>
+
+        <div class="card adaptive-insight-card">
+            <h3 class="card-title-sm">Adaptive Interpretation</h3>
+            <div class="adaptive-insight-grid">
+                <div class="adaptive-insight-item">
+                    <span class="adaptive-insight-label">Intent</span>
+                    <strong id="adaptive-intent-name" class="adaptive-insight-value">IDLE</strong>
+                    <span id="adaptive-intent-confidence" class="adaptive-insight-detail">0% confidence</span>
+                </div>
+                <div class="adaptive-insight-item">
+                    <span class="adaptive-insight-label">Motion</span>
+                    <strong id="adaptive-motion-name" class="adaptive-insight-value">Stationary</strong>
+                    <span id="adaptive-gesture-name" class="adaptive-insight-detail">NONE</span>
+                </div>
+                <div class="adaptive-insight-item">
+                    <span class="adaptive-insight-label">Unknown detector</span>
+                    <strong id="adaptive-unknown-name" class="adaptive-insight-value">NO UNKNOWN GESTURE</strong>
+                    <span id="adaptive-unknown-detail" class="adaptive-insight-detail">Waiting for a hand observation.</span>
+                </div>
+                <div class="adaptive-insight-item">
+                    <span class="adaptive-insight-label">Context</span>
+                    <strong id="adaptive-context-name" class="adaptive-insight-value">RECOGNITION</strong>
+                    <span id="adaptive-context-detail" class="adaptive-insight-detail">Sign recognition context</span>
+                </div>
+            </div>
+            <p id="adaptive-insight-note" class="adaptive-insight-note">
+                Unsupported or low-confidence observations are surfaced instead of being silently mapped to a command.
+            </p>
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/Hide.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/adaptive.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -124,6 +125,10 @@
                     <span id="status-hand" class="badge badge-danger">NO HAND</span>
                     <span id="status-gesture" class="badge">NONE</span>
                     <span id="status-interaction" class="badge" style="background: rgba(56, 189, 248, 0.2); color: var(--accent-blue);">IDLE</span>
+                    <span id="status-adaptive" class="badge adaptive-status-badge">ADAPTIVE AI</span>
+                    <span id="status-intent" class="badge adaptive-status-badge">INTENT: IDLE</span>
+                    <span id="status-unknown" class="badge adaptive-unknown-badge" hidden>UNKNOWN</span>
+                    <button id="adaptive-profile-trigger" class="badge adaptive-profile-trigger" type="button">PROFILE</button>
                 </div>
             </header>
 
@@ -133,9 +138,76 @@
         </div>
     </div>
 
+    <!-- PERSONALIZED PROFILE & ADAPTIVE RUNTIME PANEL -->
+    <section id="adaptive-profile-panel" hidden aria-labelledby="adaptive-profile-title">
+        <div class="adaptive-panel-header">
+            <h3 id="adaptive-profile-title">Personalized Interaction Profile</h3>
+            <button id="adaptive-profile-close" class="adaptive-close-button" type="button" aria-label="Close profile">×</button>
+        </div>
+        <form id="adaptive-profile-form" class="adaptive-form">
+            <label for="profile-display-name">
+                Display name
+                <input id="profile-display-name" type="text" maxlength="80" autocomplete="off" placeholder="Local user">
+            </label>
+            <label for="profile-language">
+                Preferred translation language
+                <select id="profile-language">
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                    <option value="Gujarati">Gujarati</option>
+                </select>
+            </label>
+            <label for="profile-module">
+                Preferred workspace
+                <select id="profile-module">
+                    <option value="studio">Sign Language Studio</option>
+                    <option value="recognition">Sign Recognition</option>
+                    <option value="mouse">Air Mouse</option>
+                    <option value="alphabet">Sign Alphabet</option>
+                    <option value="drawing">Air Drawing</option>
+                </select>
+            </label>
+            <label for="profile-cursor-sensitivity">
+                Personalized cursor speed <span id="profile-cursor-value">50%</span>
+                <input id="profile-cursor-sensitivity" type="range" min="10" max="100" step="5" value="50">
+            </label>
+            <label for="profile-scroll-sensitivity">
+                Personalized scroll speed
+                <select id="profile-scroll-sensitivity">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </label>
+            <label for="profile-interaction-mode">
+                Interaction mode
+                <select id="profile-interaction-mode">
+                    <option value="adaptive">Adaptive context interpretation</option>
+                    <option value="legacy">Legacy gesture routing</option>
+                </select>
+            </label>
+            <label class="adaptive-check-row" for="profile-learning-enabled">
+                <input id="profile-learning-enabled" type="checkbox" checked>
+                <span>Store interaction transitions for personalization</span>
+            </label>
+        </form>
+        <div class="adaptive-panel-actions">
+            <button id="adaptive-profile-save" type="button">SAVE PROFILE</button>
+            <button id="adaptive-profile-reset" type="button">RESET PROFILE</button>
+        </div>
+        <div id="adaptive-profile-message" class="adaptive-panel-message" role="status"></div>
+        <div class="adaptive-live-summary">
+            <div class="adaptive-live-row"><span>Current intent</span><strong id="adaptive-live-intent">IDLE</strong></div>
+            <div class="adaptive-live-row"><span>Gesture state</span><strong id="adaptive-live-gesture">NONE</strong></div>
+            <div class="adaptive-live-row"><span>Temporal motion</span><strong id="adaptive-live-motion">STATIONARY</strong></div>
+            <div class="adaptive-live-row"><span>Unknown detector</span><strong id="adaptive-live-unknown">NO HAND</strong></div>
+        </div>
+    </section>
+
     <script src="{{ url_for('static', filename='js/global/navigation.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/state_client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/gesture_client.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/adaptive_client.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

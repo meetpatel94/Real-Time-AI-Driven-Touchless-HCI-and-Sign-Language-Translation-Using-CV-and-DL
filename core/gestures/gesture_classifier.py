@@ -16,17 +16,37 @@ class GestureClassifier:
         dist_pip = math.hypot(pip.x - wrist.x, pip.y - wrist.y)
         return dist_tip < dist_pip
 
+    def get_finger_states(self, landmarks):
+        """Return the same four-finger geometry used by legacy classification.
+
+        Adaptive services consume these features alongside motion.  Keeping the
+        calculation here prevents the new path from silently using a different
+        definition of a known gesture than the existing mouse path.
+        """
+        if not landmarks:
+            return {"index": False, "middle": False, "ring": False, "pinky": False}
+
+        lm = landmarks.landmark
+        wrist = lm[0]
+        return {
+            "index": self._is_extended(lm[8], lm[6], lm[5], wrist),
+            "middle": self._is_extended(lm[12], lm[10], lm[9], wrist),
+            "ring": self._is_extended(lm[16], lm[14], lm[13], wrist),
+            "pinky": self._is_extended(lm[20], lm[18], lm[17], wrist),
+        }
+
     def classify(self, landmarks, image_shape: Tuple[int, int]) -> GestureType:
         if not landmarks:
             return GestureType.NONE
 
         lm = landmarks.landmark
         wrist = lm[0]
+        finger_states = self.get_finger_states(landmarks)
 
-        index_ext = self._is_extended(lm[8], lm[6], lm[5], wrist)
-        middle_ext = self._is_extended(lm[12], lm[10], lm[9], wrist)
-        ring_ext = self._is_extended(lm[16], lm[14], lm[13], wrist)
-        pinky_ext = self._is_extended(lm[20], lm[18], lm[17], wrist)
+        index_ext = finger_states["index"]
+        middle_ext = finger_states["middle"]
+        ring_ext = finger_states["ring"]
+        pinky_ext = finger_states["pinky"]
 
         index_fold = self._is_folded(lm[8], lm[6], wrist)
         middle_fold = self._is_folded(lm[12], lm[10], wrist)
