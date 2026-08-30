@@ -88,6 +88,44 @@
         </div>
     </div>
 
+    <!-- ADAPTIVE REASONING INSIGHT -->
+    <div class="card adaptive-insight-card" style="margin-top: 1rem;">
+        <div class="sentence-card-header">
+            <h3 class="card-title-sm">Human-Adaptive Interaction Insight</h3>
+            <span class="badge adaptive-status-badge">GESTURE + MOTION + CONTEXT</span>
+        </div>
+        <div class="adaptive-insight-grid">
+            <div class="adaptive-insight-item">
+                <span class="adaptive-insight-label">Current intent</span>
+                <strong id="adaptive-intent-name" class="adaptive-insight-value">IDLE</strong>
+                <span id="adaptive-intent-confidence" class="adaptive-insight-detail">0% confidence</span>
+            </div>
+            <div class="adaptive-insight-item">
+                <span class="adaptive-insight-label">Gesture evidence</span>
+                <strong id="adaptive-gesture-name" class="adaptive-insight-value">NONE</strong>
+                <span id="adaptive-motion-name" class="adaptive-insight-detail">Stationary · 0.000 travel</span>
+            </div>
+            <div class="adaptive-insight-item">
+                <span class="adaptive-insight-label">Unknown detector</span>
+                <strong id="adaptive-unknown-name" class="adaptive-insight-value">NO UNKNOWN GESTURE</strong>
+                <span id="adaptive-unknown-detail" class="adaptive-insight-detail">Waiting for a hand observation.</span>
+            </div>
+            <div class="adaptive-insight-item">
+                <span class="adaptive-insight-label">Context</span>
+                <strong id="adaptive-context-name" class="adaptive-insight-value">STUDIO</strong>
+                <span id="adaptive-context-detail" class="adaptive-insight-detail">Sentence context active</span>
+            </div>
+            <div class="adaptive-insight-item">
+                <span class="adaptive-insight-label">Prediction source</span>
+                <strong id="adaptive-prediction-source" class="adaptive-insight-value">Base Model</strong>
+                <span id="adaptive-prediction-detail" class="adaptive-insight-detail">No personal override</span>
+            </div>
+        </div>
+        <p id="adaptive-insight-note" class="adaptive-insight-note">
+            Intent is inferred from the current hand observation, temporal motion, workspace context and recent interaction history. Unknown observations never issue a command.
+        </p>
+    </div>
+
     <!-- BOTTOM ROW: TRANSLATION & QUICK ACTIONS -->
     <div class="studio-bottom-row">
         <div class="card translation-compact-card">

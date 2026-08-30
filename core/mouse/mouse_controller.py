@@ -42,4 +42,13 @@ class MouseController:
             logger.error(f"Error executing OS scroll: {e}")
             return False
 
+    def back(self) -> bool:
+        """Navigate back through the active desktop/browser window."""
+        try:
+            pyautogui.hotkey("alt", "left")
+            return True
+        except Exception as e:
+            logger.error(f"Error executing OS back navigation: {e}")
+            return False
+
 mouse_controller = MouseController()

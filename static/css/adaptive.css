@@ -1,0 +1,404 @@
+/* Human-adaptive interaction surfaces */
+#header > div {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.adaptive-status-badge {
+    background: rgba(168, 85, 247, 0.16);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.adaptive-unknown-badge {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.adaptive-profile-trigger {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid rgba(168, 85, 247, 0.38);
+    background: rgba(168, 85, 247, 0.10);
+    color: #e9d5ff;
+    cursor: pointer;
+}
+
+.adaptive-profile-trigger:hover {
+    background: rgba(168, 85, 247, 0.22);
+}
+
+#adaptive-profile-panel {
+    position: fixed;
+    top: calc(var(--header-height) + 0.75rem);
+    right: 1rem;
+    width: min(470px, calc(100vw - 2rem));
+    max-height: calc(100vh - var(--header-height) - 2rem);
+    overflow-y: auto;
+    z-index: 1100;
+    background: var(--panel-bg);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.48);
+}
+
+#adaptive-profile-panel[hidden] {
+    display: none;
+}
+
+.adaptive-panel-header,
+.adaptive-panel-actions,
+.adaptive-field-row,
+.adaptive-live-row,
+.adaptive-section-heading,
+.adaptive-calibration-controls,
+.adaptive-correction-row,
+.adaptive-learned-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.adaptive-panel-header {
+    margin-bottom: 0.85rem;
+}
+
+.adaptive-panel-header h3 {
+    font-size: 1rem;
+}
+
+.adaptive-close-button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-dark);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.adaptive-close-button:hover {
+    color: var(--text-main);
+    border-color: var(--accent-blue);
+}
+
+.adaptive-form {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.adaptive-form label {
+    display: grid;
+    gap: 0.3rem;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.adaptive-form input[type="text"],
+.adaptive-form select,
+.adaptive-learning-section select,
+.adaptive-learning-section input[type="text"] {
+    width: 100%;
+    min-height: 34px;
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font: inherit;
+    text-transform: none;
+}
+
+.adaptive-form input[type="range"] {
+    width: 100%;
+    accent-color: #c084fc;
+}
+
+.adaptive-check-row {
+    display: flex !important;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto;
+    align-items: center;
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 0.5rem !important;
+    text-transform: none !important;
+}
+
+.adaptive-check-row input {
+    accent-color: #c084fc;
+}
+
+.adaptive-panel-actions {
+    margin-top: 0.9rem;
+}
+
+.adaptive-panel-actions button,
+.adaptive-calibration-controls button,
+.adaptive-section-heading button,
+.adaptive-correction-row button,
+.adaptive-learned-controls button,
+.adaptive-danger-button {
+    min-height: 34px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.adaptive-panel-actions button {
+    flex: 1;
+}
+
+#adaptive-profile-save,
+#personalization-calibration-start,
+#personalization-complete,
+#personalization-submit-correction {
+    background: #c084fc;
+    border-color: #c084fc;
+    color: #1e1030;
+}
+
+#adaptive-profile-reset,
+#personalization-capture {
+    background: var(--bg-dark);
+    color: var(--text-muted);
+}
+
+.adaptive-panel-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.adaptive-panel-message {
+    min-height: 1.1rem;
+    margin-top: 0.65rem;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.adaptive-live-summary {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border-color);
+    display: grid;
+    gap: 0.45rem;
+}
+
+.adaptive-live-row {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.adaptive-live-row strong {
+    color: var(--text-main);
+    text-align: right;
+}
+
+.adaptive-learning-section {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border-color);
+    display: grid;
+    gap: 0.65rem;
+}
+
+.adaptive-section-heading {
+    color: #e9d5ff;
+    font-size: 0.82rem;
+}
+
+.adaptive-help,
+.adaptive-correction-note {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.adaptive-section-heading .adaptive-help {
+    text-align: right;
+}
+
+.adaptive-calibration-controls select {
+    flex: 1;
+}
+
+.adaptive-calibration-progress {
+    display: grid;
+    gap: 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.adaptive-progress-track {
+    height: 7px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+}
+
+.adaptive-progress-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: #c084fc;
+    transition: width 0.2s ease;
+}
+
+.adaptive-learning-actions {
+    margin-top: 0;
+}
+
+.adaptive-learned-list {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.adaptive-learned-row {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.6rem;
+    border-radius: 7px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+}
+
+.adaptive-learned-details {
+    display: grid;
+    gap: 0.18rem;
+    min-width: 0;
+}
+
+.adaptive-learned-details strong {
+    overflow: hidden;
+    color: var(--text-main);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.adaptive-learned-details span,
+.adaptive-mapping-label {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.adaptive-learned-controls select {
+    flex: 1;
+}
+
+.adaptive-learned-controls button,
+.adaptive-small-button,
+.adaptive-link-button {
+    padding: 0.35rem 0.55rem;
+    background: rgba(168, 85, 247, 0.12);
+    color: #e9d5ff;
+}
+
+.adaptive-correction-row input {
+    flex: 1;
+}
+
+.adaptive-correction-row button {
+    padding: 0.35rem 0.55rem;
+    white-space: nowrap;
+}
+
+.adaptive-danger-button {
+    padding: 0.4rem 0.6rem;
+    background: transparent;
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.35);
+}
+
+.adaptive-insight-card {
+    border-color: rgba(168, 85, 247, 0.35);
+}
+
+.adaptive-insight-card .card-title-sm {
+    color: #e9d5ff;
+}
+
+.adaptive-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+}
+
+.adaptive-insight-item {
+    min-width: 0;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.65rem;
+}
+
+.adaptive-insight-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.adaptive-insight-value {
+    display: block;
+    overflow: hidden;
+    margin-top: 0.25rem;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.adaptive-insight-detail {
+    display: block;
+    overflow: hidden;
+    margin-top: 0.15rem;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.adaptive-insight-note {
+    margin-top: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    line-height: 1.4;
+}
+
+@media (max-width: 1100px) {
+    .adaptive-insight-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .adaptive-insight-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #status-intent,
+    #status-unknown {
+        display: none;
+    }
+
+    .adaptive-section-heading,
+    .adaptive-calibration-controls,
+    .adaptive-correction-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

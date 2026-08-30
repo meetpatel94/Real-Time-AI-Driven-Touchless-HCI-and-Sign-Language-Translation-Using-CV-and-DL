@@ -83,6 +83,10 @@ data/dataset/*
 data/exports/*
 data/raw/
 data/processed/
+# Legacy SQLite files may be used only as one-time migration input.
+data/*.sqlite3
+data/*.sqlite3-wal
+data/*.sqlite3-shm
 dataset/
 datasets/
 uploads/

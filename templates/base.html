@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/Hide.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/adaptive.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -124,6 +125,10 @@
                     <span id="status-hand" class="badge badge-danger">NO HAND</span>
                     <span id="status-gesture" class="badge">NONE</span>
                     <span id="status-interaction" class="badge" style="background: rgba(56, 189, 248, 0.2); color: var(--accent-blue);">IDLE</span>
+                    <span id="status-adaptive" class="badge adaptive-status-badge">ADAPTIVE AI</span>
+                    <span id="status-intent" class="badge adaptive-status-badge">INTENT: IDLE</span>
+                    <span id="status-unknown" class="badge adaptive-unknown-badge" hidden>UNKNOWN</span>
+                    <button id="adaptive-profile-trigger" class="badge adaptive-profile-trigger" type="button">PROFILE</button>
                 </div>
             </header>
 
@@ -133,9 +138,120 @@
         </div>
     </div>
 
+    <!-- PERSONALIZED PROFILE & ADAPTIVE RUNTIME PANEL -->
+    <section id="adaptive-profile-panel" hidden aria-labelledby="adaptive-profile-title">
+        <div class="adaptive-panel-header">
+            <h3 id="adaptive-profile-title">Personalized Interaction Profile</h3>
+            <button id="adaptive-profile-close" class="adaptive-close-button" type="button" aria-label="Close profile">×</button>
+        </div>
+        <form id="adaptive-profile-form" class="adaptive-form">
+            <label for="profile-display-name">
+                Display name
+                <input id="profile-display-name" type="text" maxlength="80" autocomplete="off" placeholder="Local user">
+            </label>
+            <label for="profile-language">
+                Preferred translation language
+                <select id="profile-language">
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                    <option value="Gujarati">Gujarati</option>
+                </select>
+            </label>
+            <label for="profile-module">
+                Preferred workspace
+                <select id="profile-module">
+                    <option value="studio">Sign Language Studio</option>
+                    <option value="recognition">Sign Recognition</option>
+                    <option value="mouse">Air Mouse</option>
+                    <option value="alphabet">Sign Alphabet</option>
+                    <option value="drawing">Air Drawing</option>
+                </select>
+            </label>
+            <label for="profile-cursor-sensitivity">
+                Personalized cursor speed <span id="profile-cursor-value">50%</span>
+                <input id="profile-cursor-sensitivity" type="range" min="10" max="100" step="5" value="50">
+            </label>
+            <label for="profile-scroll-sensitivity">
+                Personalized scroll speed
+                <select id="profile-scroll-sensitivity">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </label>
+            <label for="profile-interaction-mode">
+                Interaction mode
+                <select id="profile-interaction-mode">
+                    <option value="adaptive">Adaptive context interpretation</option>
+                    <option value="legacy">Legacy gesture routing</option>
+                </select>
+            </label>
+            <label class="adaptive-check-row" for="profile-learning-enabled">
+                <input id="profile-learning-enabled" type="checkbox" checked>
+                <span>Enable personalized learning and adaptive history</span>
+            </label>
+        </form>
+        <div class="adaptive-panel-actions">
+            <button id="adaptive-profile-save" type="button">SAVE PROFILE</button>
+            <button id="adaptive-profile-reset" type="button">RESET PROFILE</button>
+        </div>
+        <div id="adaptive-profile-message" class="adaptive-panel-message" role="status"></div>
+        <div class="adaptive-live-summary">
+            <div class="adaptive-live-row"><span>Current intent</span><strong id="adaptive-live-intent">IDLE</strong></div>
+            <div class="adaptive-live-row"><span>Gesture state</span><strong id="adaptive-live-gesture">NONE</strong></div>
+            <div class="adaptive-live-row"><span>Temporal motion</span><strong id="adaptive-live-motion">STATIONARY</strong></div>
+            <div class="adaptive-live-row"><span>Unknown detector</span><strong id="adaptive-live-unknown">NO HAND</strong></div>
+            <div class="adaptive-live-row"><span>Prediction source</span><strong id="adaptive-live-source">BASE MODEL</strong></div>
+            <div class="adaptive-live-row"><span>Personalization storage</span><strong id="adaptive-storage-status">CHECKING</strong></div>
+        </div>
+        <div class="adaptive-learning-section">
+            <div class="adaptive-section-heading">
+                <strong>Explicit gesture calibration</strong>
+                <span class="adaptive-help">Only accepted stable derived features are retained. Use the left hand for signs and the right hand for control gestures.</span>
+            </div>
+            <div class="adaptive-calibration-controls">
+                <select id="personalization-target" aria-label="Gesture learning target">
+                    <option value="custom:my gesture">Custom gesture</option>
+                    <option value="ONE_FINGER">Base pose: One finger</option>
+                    <option value="TWO_FINGER">Base pose: Two fingers</option>
+                    <option value="CLOSED_FIST">Base pose: Closed fist</option>
+                    <option value="A">Sign: A</option>
+                    <option value="B">Sign: B</option>
+                </select>
+                <input id="personalization-custom-name" type="text" maxlength="48" placeholder="Custom name" aria-label="Custom gesture name">
+                <button id="personalization-calibration-start" type="button">START</button>
+            </div>
+            <div class="adaptive-calibration-progress" aria-live="polite">
+                <div class="adaptive-progress-track"><span id="personalization-progress-bar"></span></div>
+                <span id="personalization-progress-label">No active calibration</span>
+            </div>
+            <div class="adaptive-panel-actions adaptive-learning-actions">
+                <button id="personalization-capture" type="button" disabled>ACCEPT SAMPLE</button>
+                <button id="personalization-complete" type="button" disabled>COMPLETE</button>
+            </div>
+            <div id="personalization-sample-message" class="adaptive-panel-message" role="status"></div>
+        </div>
+        <div class="adaptive-learning-section">
+            <div class="adaptive-section-heading">
+                <strong>Learned gestures and mappings</strong>
+                <button id="personalization-refresh" class="adaptive-small-button" type="button">REFRESH</button>
+            </div>
+            <div id="personalization-learned-list" class="adaptive-learned-list">
+                <span class="adaptive-help">No validated personal gestures loaded.</span>
+            </div>
+            <div class="adaptive-correction-row">
+                <input id="personalization-correction-label" type="text" maxlength="48" placeholder="Correct label, e.g. B or custom:wave" aria-label="Correction label">
+                <button id="personalization-submit-correction" type="button">LEARN CORRECTION</button>
+            </div>
+            <div class="adaptive-correction-note">Corrections are never learned from ordinary predictions. Submitting this control is explicit validation; use the left hand for A–Z signs and the right hand for control gestures.</div>
+            <button id="personalization-reset" class="adaptive-danger-button" type="button">RESET PERSONALIZED GESTURES</button>
+        </div>
+    </section>
+
     <script src="{{ url_for('static', filename='js/global/navigation.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/state_client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/gesture_client.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/adaptive_client.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

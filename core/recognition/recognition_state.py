@@ -1,7 +1,7 @@
 import threading
 import time
 from collections import deque
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from config import Config
 
 class RecognitionState:
@@ -75,10 +75,26 @@ class RecognitionState:
         with self.lock:
             self.right_gesture = gesture
 
-    def process_right_hand_fist(self, is_fist_detected: bool, confidence_threshold: float = 70.0) -> Dict[str, Any]:
+    def process_right_hand_fist(
+        self,
+        is_fist_detected: bool,
+        confidence_threshold: float = 70.0,
+        label_override: Optional[str] = None,
+        confidence_override: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Debounce a confirmation pose, optionally for a validated personal sign.
+
+        The override is only supplied by the adaptive layer after its own
+        confidence/evidence checks; ordinary base-model calls retain the exact
+        legacy behavior.
+        """
         with self.lock:
             now = time.time()
             committed = False
+            candidate_label = label_override if label_override else self.current_label
+            candidate_confidence = (
+                confidence_override if confidence_override is not None else self.confidence
+            )
 
             if is_fist_detected:
                 self.fist_frame_counter += 1
@@ -90,11 +106,11 @@ class RecognitionState:
                 ):
                     if (
                         self.left_hand_detected
-                        and self.current_label not in ["NONE", "UNKNOWN", "--"]
-                        and self.confidence >= confidence_threshold
+                        and candidate_label not in ["NONE", "UNKNOWN", "--"]
+                        and candidate_confidence >= confidence_threshold
                     ):
-                        self.sentence += self.current_label
-                        self.last_confirmed_letter = self.current_label
+                        self.sentence += candidate_label
+                        self.last_confirmed_letter = candidate_label
                         self.last_commit_timestamp = now
                         self.confirmation_active_until = now + 1.2
                         self.is_fist_locked = True
