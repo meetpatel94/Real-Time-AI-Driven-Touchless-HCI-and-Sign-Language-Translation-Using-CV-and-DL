@@ -26,7 +26,10 @@ class AdaptiveIntentService:
         context = dict(context or {})
         profile = profile or user_profile_service.get_active_profile()
         sign_snapshot = sign_snapshot or {}
-        context["recent_intents"] = interaction_history_service.recent_intents(profile.user_id, limit=8)
+        context["recent_intents"] = (
+            interaction_history_service.recent_intents(profile.user_id, limit=8)
+            if getattr(profile, "learning_enabled", True) else []
+        )
 
         unknown = unknown_gesture_service.evaluate(
             right_observation,

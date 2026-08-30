@@ -77,8 +77,10 @@ class InteractionHistoryService:
             self._last_record[event.user_id] = (signature, now)
 
             try:
-                # Prime the cache before inserting so the just-written event is
-                # not loaded from SQLite and then appended a second time.
+                # Ensure the foreign-key parent exists, then prime the cache
+                # before inserting so the just-written event is not loaded from
+                # SQLite and then appended a second time.
+                self.profile_service.get_profile(event.user_id)
                 recent = self._load_recent(event.user_id)
                 saved = self.repository.add(event)
                 recent.append(saved)

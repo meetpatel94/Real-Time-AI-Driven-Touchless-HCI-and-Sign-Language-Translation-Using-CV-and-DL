@@ -99,6 +99,8 @@ class UnknownGestureDetector:
         # In sign-facing modules, a present left hand with an out-of-vocabulary
         # model result is more useful than reporting the right-hand command pose.
         if sign_is_unknown and module in {"recognition", "studio"}:
+            with self._lock:
+                self._right_candidate = None
             score = max(0.35, min(1.0, 1.0 - (raw_confidence / 100.0)))
             return UnknownGestureResult(
                 status="UNRECOGNIZED_SIGN",
