@@ -40,6 +40,9 @@ def toggle_camera():
             return jsonify({"status": "error", "message": "Failed to access webcam."}), 500
     else:
         camera_manager.stop()
+        # Invalidate adaptive temporal/latest-pose state immediately so an
+        # explicit calibration request cannot reuse the last camera frame.
+        gesture_engine.reset_adaptive_state()
 
     return jsonify({"status": "success", "camera_enabled": global_state.get_state()["camera_enabled"]})
 

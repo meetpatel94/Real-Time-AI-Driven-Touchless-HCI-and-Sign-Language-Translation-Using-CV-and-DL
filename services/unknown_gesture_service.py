@@ -1,0 +1,214 @@
+"""Unknown and out-of-vocabulary gesture detection."""
+
+import math
+import threading
+import time
+from typing import Dict, Optional, Tuple
+
+from config import Config
+from core.adaptive.observation import GestureObservation, UnknownGestureResult
+
+
+class UnknownGestureDetector:
+    """Uses confidence, hand geometry, and temporal persistence to flag novelty.
+
+    This is intentionally a detector, not a fabricated classifier for gestures
+    the model has never seen.  It exposes why a pose was rejected so a later
+    phase can collect labelled examples or route it to a user-specific model.
+    """
+
+    def __init__(
+        self,
+        min_samples: int = Config.ADAPTIVE_UNKNOWN_MIN_SAMPLES,
+        hold_seconds: float = Config.ADAPTIVE_UNKNOWN_HOLD_SECONDS,
+    ):
+        self.min_samples = min_samples
+        self.hold_seconds = hold_seconds
+        self._lock = threading.Lock()
+        self._right_candidate: Optional[Tuple[int, float]] = None
+
+    def reset(self) -> None:
+        with self._lock:
+            self._right_candidate = None
+
+    def _right_unknown(self, observation: GestureObservation, threshold: float) -> UnknownGestureResult:
+        try:
+            tracking_quality = float(observation.tracking_quality)
+        except (TypeError, ValueError):
+            tracking_quality = 0.0
+        if not math.isfinite(tracking_quality) or tracking_quality < 0.85:
+            # Low-quality frames must not contribute to the temporal persistence
+            # required for an unknown decision.
+            with self._lock:
+                self._right_candidate = None
+            return UnknownGestureResult(
+                status="LOW_TRACKING_QUALITY",
+                is_unknown=False,
+                score=min(1.0, max(0.0, 1.0 - tracking_quality)),
+                reason="The hand landmarks are incomplete; waiting for a stable track.",
+                hand=observation.handedness,
+            )
+
+        motion = getattr(observation, "motion", None)
+        try:
+            stability = float(getattr(motion, "stability", 0.0)) if motion is not None else 0.0
+        except (TypeError, ValueError):
+            stability = 0.0
+        if not math.isfinite(stability) or stability < 0.25:
+            # A changing/unstable pose is not enough evidence for an unknown
+            # command candidate; wait for a stable temporal window instead.
+            with self._lock:
+                self._right_candidate = None
+            return UnknownGestureResult(
+                status="TRANSITIONING",
+                is_unknown=False,
+                score=0.0,
+                reason="A hand pose is changing; waiting for temporal stability.",
+                hand=observation.handedness,
+            )
+
+        now = time.monotonic()
+        with self._lock:
+            if self._right_candidate is None:
+                self._right_candidate = (1, now)
+            else:
+                count, started = self._right_candidate
+                self._right_candidate = (count + 1, started)
+            count, started = self._right_candidate
+
+        if count < self.min_samples or (now - started) < self.hold_seconds:
+            return UnknownGestureResult(
+                status="TRANSITIONING",
+                is_unknown=False,
+                score=0.0,
+                reason="A hand pose is changing; waiting for temporal stability.",
+                hand=observation.handedness,
+            )
+
+        motion_bonus = min(0.25, observation.motion.speed / 8.0)
+        score = min(1.0, max(threshold, 0.62 + motion_bonus))
+        reason = "The stable hand pose is outside the supported gesture vocabulary."
+        if observation.motion.direction != "stationary":
+            reason = "The hand motion and pose do not match a supported command."
+        return UnknownGestureResult(
+            status="UNKNOWN_GESTURE",
+            is_unknown=True,
+            score=score,
+            reason=reason,
+            hand=observation.handedness,
+            requires_feedback=True,
+        )
+
+    def evaluate(
+        self,
+        right_observation: Optional[GestureObservation],
+        left_observation: Optional[GestureObservation],
+        sign_snapshot: Optional[Dict[str, object]],
+        profile,
+        context: Optional[Dict[str, object]] = None,
+    ) -> UnknownGestureResult:
+        context = context or {}
+        sign_snapshot = sign_snapshot or {}
+        threshold = float(getattr(profile, "unknown_gesture_threshold", 0.60))
+        module = str(context.get("active_module", "overview"))
+
+        left_present = left_observation is not None
+        try:
+            left_tracking_quality = float(getattr(left_observation, "tracking_quality", 0.0)) if left_present else 1.0
+        except (TypeError, ValueError):
+            left_tracking_quality = 0.0
+        left_tracking_ok = math.isfinite(left_tracking_quality) and left_tracking_quality >= 0.85
+        raw_prediction = str(sign_snapshot.get("raw_prediction", "NONE") or "NONE").upper()
+        stable_prediction = str(sign_snapshot.get("prediction", "NONE") or "NONE").upper()
+        raw_confidence = float(sign_snapshot.get("raw_confidence", 0.0) or 0.0)
+        sign_threshold = float(Config.RECOGNITION_CONFIDENCE_THRESHOLD) * 100.0
+        personalization = context.get("personalization") or {}
+        if hasattr(personalization, "to_dict"):
+            personalization = personalization.to_dict()
+        if (
+            isinstance(personalization, dict)
+            and personalization.get("used")
+            and personalization.get("mapping_action")
+        ):
+            with self._lock:
+                self._right_candidate = None
+            return UnknownGestureResult(
+                status="PERSONALIZED_GESTURE",
+                is_unknown=False,
+                score=float(personalization.get("confidence", 0.0) or 0.0),
+                reason="A validated user gesture mapping matched; the adaptive intent engine may route it.",
+                hand=(right_observation.handedness if right_observation else "left"),
+            )
+
+        personalized_sign = (
+            isinstance(personalization, dict)
+            and personalization.get("used")
+            and not personalization.get("mapping_action")
+            and len(str(personalization.get("personalized_label", "") or "")) == 1
+            and str(personalization.get("personalized_label", "") or "").upper() in {
+                chr(code) for code in range(ord("A"), ord("Z") + 1)
+            }
+            and float(personalization.get("confidence", 0.0) or 0.0)
+            >= float(Config.PERSONALIZATION_MATCH_MIN_CONFIDENCE)
+        )
+        sign_is_unknown = left_present and left_tracking_ok and not personalized_sign and (
+            raw_prediction == "UNKNOWN"
+            or stable_prediction == "UNKNOWN"
+            or (raw_prediction not in {"NONE", "UNKNOWN"} and raw_confidence < sign_threshold)
+        )
+
+        if left_present and not left_tracking_ok and right_observation is None:
+            with self._lock:
+                self._right_candidate = None
+            return UnknownGestureResult(
+                status="LOW_TRACKING_QUALITY",
+                is_unknown=False,
+                score=min(1.0, max(0.0, 1.0 - left_tracking_quality)),
+                reason="The left-hand landmarks are incomplete; waiting for a stable sign track.",
+                hand="left",
+            )
+
+        # In sign-facing modules, a present left hand with an out-of-vocabulary
+        # model result is more useful than reporting the right-hand command pose.
+        if sign_is_unknown and module in {"recognition", "studio"}:
+            with self._lock:
+                self._right_candidate = None
+            score = max(0.35, min(1.0, 1.0 - (raw_confidence / 100.0)))
+            return UnknownGestureResult(
+                status="UNRECOGNIZED_SIGN",
+                is_unknown=True,
+                score=score,
+                reason="The sign model confidence is below its supported alphabet boundary.",
+                hand="left",
+                requires_feedback=True,
+            )
+
+        if right_observation is not None:
+            if right_observation.gesture == "NONE":
+                return self._right_unknown(right_observation, threshold)
+            with self._lock:
+                self._right_candidate = None
+            return UnknownGestureResult(
+                status="KNOWN_GESTURE",
+                is_unknown=False,
+                score=0.0,
+                reason="The pose matches an existing GestureForge gesture family.",
+                hand=right_observation.handedness,
+            )
+
+        with self._lock:
+            self._right_candidate = None
+
+        if left_present and not sign_is_unknown:
+            return UnknownGestureResult(
+                status="KNOWN_SIGN" if stable_prediction not in {"NONE", "UNKNOWN"} else "TRANSITIONING",
+                is_unknown=False,
+                score=0.0,
+                reason="The left-hand sign is supported or still being inferred.",
+                hand="left",
+            )
+
+        return UnknownGestureResult()
+
+
+unknown_gesture_service = UnknownGestureDetector()
