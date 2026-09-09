@@ -225,12 +225,17 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
 }
 
 .connect-created-label,
-.connect-join-label {
+.connect-join-label,
+.connect-field-label {
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
     font-weight: 700;
+}
+
+.connect-lobby-input {
+    width: 100%;
 }
 
 .connect-join-form {
@@ -370,6 +375,25 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
     margin-right: 0.8rem;
 }
 
+.connect-room-participants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.8rem;
+    color: var(--text-main);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.connect-room-participants span {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.connect-room-participants strong {
+    color: var(--text-main);
+    font-weight: 800;
+}
+
 /* ---------- two panels ---------- */
 .connect-grid {
     display: grid;
@@ -390,8 +414,17 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
 }
 
 .connect-panel-header h3 {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     margin-top: 0.15rem;
+    color: var(--text-main);
+    overflow-wrap: anywhere;
+}
+
+.connect-identity-meta {
+    margin-top: 0.22rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
 }
 
 .connect-role-tag {

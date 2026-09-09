@@ -10,6 +10,9 @@
 
     var LS_ROOM = 'gf_connect_room';
     var LS_CLIENT = 'gf_connect_client_id';
+    var MAX_DISPLAY_NAME_LENGTH = 40;
+    var MIN_ROOM_PASSWORD_LENGTH = 4;
+    var MAX_ROOM_PASSWORD_LENGTH = 128;
     var MEDIAPIPE_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/';
     var BUILTIN_FALLBACK = {
         one: { symbol: '☝️', meaning: 'Hii' },
@@ -28,6 +31,7 @@
         state: 'idle',
         attempts: 0,
         clientId: null,
+        sessionToken: null,
         room: null,
         pendingIntent: null,
         outbox: [],
@@ -178,10 +182,33 @@
             conn.recognitionOn ? 'badge-success' : '');
     }
 
+    function participantDisplayName(participant, fallback) {
+        return (participant && participant.display_name) || fallback || 'Participant';
+    }
+
+    function renderRoomParticipants() {
+        if (!el.roomParticipants || !conn.room) return;
+        var bySeat = {};
+        conn.peers.forEach(function (participant) {
+            bySeat[participant.user_number || (participant.role === 'creator' ? 1 : 2)] = participant;
+        });
+        var rows = [1, 2].map(function (seat) {
+            var participant = bySeat[seat];
+            var label = 'User ' + seat;
+            var name = participant ? participantDisplayName(participant, label) : 'Waiting';
+            return '<span>' + escapeHtml(label) + ': <strong>' + escapeHtml(name) + '</strong></span>';
+        });
+        el.roomParticipants.innerHTML = rows.join('');
+    }
+
     function applyRoleLabels() {
         if (!conn.room) return;
-        if (el.youUserLabel) el.youUserLabel.textContent = conn.room.user_label || roleLabel(conn.room.role);
+        var own = conn.myPeer;
+        var ownName = participantDisplayName(own, conn.room.display_name || 'Your name');
+        if (el.youUserLabel) el.youUserLabel.textContent = ownName;
+        if (el.youSeatLabel) el.youSeatLabel.textContent = conn.room.user_label || roleLabel(conn.room.role);
         if (el.youRoleTag) el.youRoleTag.textContent = roleName(conn.room.role);
+        renderRoomParticipants();
     }
 
     function updateOtherDeviceState(other) {
@@ -212,7 +239,8 @@
             el.otherGestureBox.hidden = false;
             setBadge(el.otherConnPill, other.connected ? '🟢 Connected' : '🔴 Disconnected',
                 other.connected ? 'badge-success' : 'badge-danger');
-            el.otherUserLabel.textContent = other.user_label || roleLabel(other.role);
+            el.otherUserLabel.textContent = participantDisplayName(other, roleLabel(other.role));
+            if (el.otherSeatLabel) el.otherSeatLabel.textContent = other.user_label || roleLabel(other.role);
             el.otherRoleTag.textContent = roleName(other.role);
             updateOtherDeviceState(other);
             if (other.last_gesture) {
@@ -226,7 +254,8 @@
             el.otherGestureBox.hidden = true;
             setBadge(el.otherConnPill, '🔴 Disconnected', 'badge-danger');
             var oppositeRole = conn.room.role === 'creator' ? 'joiner' : 'creator';
-            el.otherUserLabel.textContent = roleLabel(oppositeRole);
+            el.otherUserLabel.textContent = 'Waiting for participant';
+            if (el.otherSeatLabel) el.otherSeatLabel.textContent = roleLabel(oppositeRole);
             el.otherRoleTag.textContent = roleName(oppositeRole);
             el.otherPresenceText.textContent = conn.room.role === 'creator'
                 ? 'Room is ready for User 2 to join.'
@@ -235,6 +264,7 @@
                 ? 'Share the room code so User 2 can join.'
                 : 'Reconnect to the same room to continue.';
         }
+        renderRoomParticipants();
     }
 
     function updateOtherLastGesture(msg) {
@@ -242,7 +272,9 @@
         el.otherGestureBox.hidden = false;
         el.otherSymbol.textContent = msg.symbol || '✋';
         el.otherMeaning.textContent = msg.meaning || '—';
-        el.otherMeta.textContent = (msg.sender_user || msg.sender_name || 'Other User') + ' · ' +
+        var senderName = msg.sender_name || msg.sender_user || 'Other User';
+        var senderSeat = msg.sender_user && msg.sender_name ? ' · ' + msg.sender_user : '';
+        el.otherMeta.textContent = senderName + senderSeat + ' · ' +
             (msg.kind === 'custom' ? 'custom gesture' : 'gesture') + ' · ' + fmtTime(msg.ts) +
             (msg.confidence ? ' · ' + Math.round(msg.confidence * 100) + '%' : '');
         var replayBtn = el.btnReplayGesture;
@@ -271,8 +303,13 @@
             conn.msgIds.add(msg.id);
         }
         var self = !!(conn.room && msg.from === conn.room.client_id);
-        var sender = self ? ('You · ' + localUserLabel()) :
-            (msg.sender_user || msg.sender_name || roleLabel(msg.sender_role));
+        var sender;
+        if (self) {
+            sender = 'You · ' + ((conn.room && conn.room.display_name) || localUserLabel());
+        } else {
+            sender = msg.sender_name || msg.sender_user || roleLabel(msg.sender_role);
+            if (msg.sender_name && msg.sender_user) sender += ' · ' + msg.sender_user;
+        }
         var row = document.createElement('div');
         row.className = 'connect-msg ' + (self ? 'self' : 'other');
 
@@ -1061,6 +1098,15 @@
     }
 
     function send(payload, queueWhenClosed) {
+        // Room passwords belong only to the same-origin create/join request.  Keep a
+        // defensive client-side boundary so a future caller cannot put one on
+        // the Flask-Sock relay by accident.
+        if (payload && Object.keys(payload).some(function (key) {
+            return /password/i.test(key);
+        })) {
+            toast('Room credentials must be sent through the secure room form.', 'error');
+            return false;
+        }
         if (conn.open && conn.ws) {
             try {
                 conn.ws.send(JSON.stringify(payload));
@@ -1098,7 +1144,16 @@
             var intent = conn.pendingIntent;
             conn.pendingIntent = null;
             if (intent) send(intent, false);
-            else if (conn.room) send({ type: 'resume', code: conn.room.code, client_id: conn.clientId, role: conn.room.role }, false);
+            else if (conn.room && conn.sessionToken) {
+                send({
+                    type: 'resume',
+                    code: conn.room.code,
+                    client_id: conn.clientId,
+                    role: conn.room.role,
+                    display_name: conn.room.display_name || '',
+                    session_token: conn.sessionToken
+                }, false);
+            }
             flushOutbox();
             sendDeviceStatus();
         };
@@ -1143,8 +1198,10 @@
                     role: msg.role,
                     client_id: msg.client_id,
                     user_number: msg.user_number || (msg.role === 'creator' ? 1 : 2),
-                    user_label: msg.user_label || roleLabel(msg.role)
+                    user_label: msg.user_label || roleLabel(msg.role),
+                    display_name: msg.display_name || ''
                 };
+                if (conn.sessionToken) conn.room.session_token = conn.sessionToken;
                 storeRoom(conn.room);
                 showRoomView();
                 el.roomCodeOutput.textContent = msg.code;
@@ -1191,8 +1248,8 @@
             toast(text, 'error');
             leaveRoomLocally();
             if (expiredCode) toast('Room ' + expiredCode + ' has expired. Create or join a new room.', 'error');
-        } else if (code === 'invalid_session') {
-            toast('Your session no longer belongs to this room.', 'error');
+        } else if (code === 'invalid_session' || code === 'authentication_required') {
+            toast('Unable to authenticate this Connect session.', 'error');
             leaveRoomLocally();
         } else if (code === 'invalid_gesture') {
             toast('A gesture could not be sent because its recognized meaning was invalid.', 'error');
@@ -1221,6 +1278,7 @@
     function leaveRoomLocally() {
         stopLocalCamera(false);
         conn.room = null;
+        conn.sessionToken = null;
         conn.peers = [];
         conn.myPeer = null;
         conn.msgIds.clear();
@@ -1247,27 +1305,127 @@
         leaveRoomLocally();
     }
 
-    function createRoom() {
-        conn.clientId = storedClientId();
-        conn.pendingIntent = null;
+    function validateDisplayName(value) {
+        var name = String(value || '').trim();
+        if (!name) return 'Display name is required.';
+        if (name.length > MAX_DISPLAY_NAME_LENGTH) return 'Display name must be 40 characters or fewer.';
+        return '';
+    }
+
+    function validateRoomPassword(value) {
+        var password = String(value == null ? '' : value);
+        if (!password.trim()) return 'Room password is required.';
+        if (password.length < MIN_ROOM_PASSWORD_LENGTH) return 'Room password must be at least 4 characters.';
+        if (password.length > MAX_ROOM_PASSWORD_LENGTH) return 'Room password must be 128 characters or fewer.';
+        return '';
+    }
+
+    function beginAuthorizedRoom(result, intentType) {
+        var participant = result && result.participant;
+        if (!result || !result.success || !result.code || !result.session_token || !participant) {
+            throw new Error('The room server returned an incomplete session.');
+        }
+        conn.clientId = participant.client_id;
+        conn.sessionToken = result.session_token;
+        conn.pendingIntent = {
+            // If User 1 explicitly left, the server may reuse that open seat
+            // for this authenticated join request.
+            type: participant.role === 'creator' ? 'create' : intentType,
+            code: result.code,
+            client_id: participant.client_id,
+            role: participant.role,
+            display_name: participant.display_name,
+            session_token: result.session_token
+        };
         conn.room = null;
         clearRoom();
-        queueIntent({ type: 'create', client_id: conn.clientId, display_name: '' });
-        toast('Creating a private room…', '');
-        setConnPill('connecting');
+        queueIntent(conn.pendingIntent);
+    }
+
+    function postRoomApi(path, payload) {
+        return fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+                if (!response.ok || !data.success) {
+                    var error = new Error(data.message || 'Unable to complete the room request.');
+                    error.roomCode = data.error || '';
+                    throw error;
+                }
+                return data;
+            });
+        });
+    }
+
+    function createRoom() {
+        hideCreateError();
+        var name = (el.createDisplayName.value || '').trim();
+        var password = el.createRoomPassword.value || '';
+        el.createRoomPassword.value = '';
+        var nameError = validateDisplayName(name);
+        var passwordError = validateRoomPassword(password);
+        if (nameError) { showCreateError(nameError); return; }
+        if (passwordError) { showCreateError(passwordError); return; }
+
+        el.btnCreateRoom.disabled = true;
+        // The password is never placed in conn, session storage, a URL, or a
+        // WebSocket payload.
+        postRoomApi('/api/connect/room/create', {
+            display_name: name,
+            password: password,
+            client_id: storedClientId()
+        }).then(function (result) {
+            el.roomCodeOutput.textContent = result.code;
+            el.createdRoomBox.hidden = false;
+            beginAuthorizedRoom(result, 'create');
+            toast('Private room created. Connecting…', '');
+            setConnPill('connecting');
+        }).catch(function (error) {
+            showCreateError(error.message || 'Unable to create the room.');
+        }).finally(function () {
+            password = '';
+            el.btnCreateRoom.disabled = false;
+        });
     }
 
     function joinRoom() {
-        var code = (el.joinRoomInput.value || '').trim().toUpperCase();
-        if (!code) { showJoinError('Enter the room code you received.'); return; }
         hideJoinError();
-        conn.clientId = storedClientId();
-        conn.room = null;
-        clearRoom();
-        queueIntent({ type: 'join', code: code, client_id: conn.clientId, display_name: '' });
-        setConnPill('connecting');
+        var name = (el.joinDisplayName.value || '').trim();
+        var code = (el.joinRoomInput.value || '').trim().toUpperCase();
+        var password = el.joinRoomPassword.value || '';
+        el.joinRoomPassword.value = '';
+        var nameError = validateDisplayName(name);
+        var passwordError = validateRoomPassword(password);
+        if (nameError) { showJoinError(nameError); return; }
+        if (!code) { showJoinError('Enter the room code you received.'); return; }
+        if (passwordError) { showJoinError(passwordError); return; }
+
+        el.btnJoinRoom.disabled = true;
+        postRoomApi('/api/connect/room/join', {
+            display_name: name,
+            code: code,
+            password: password,
+            client_id: storedClientId()
+        }).then(function (result) {
+            beginAuthorizedRoom(result, 'join');
+            toast('Joining private room…', '');
+            setConnPill('connecting');
+        }).catch(function (error) {
+            if (error.roomCode === 'authentication_failed') {
+                showJoinError('Unable to authenticate for this room. Check the room code and password.');
+            } else {
+                showJoinError(error.message || 'Unable to join the room.');
+            }
+        }).finally(function () {
+            password = '';
+            el.btnJoinRoom.disabled = false;
+        });
     }
 
+    function showCreateError(message) { el.createError.textContent = message; el.createError.hidden = false; }
+    function hideCreateError() { el.createError.hidden = true; }
     function showJoinError(message) { el.joinError.textContent = message; el.joinError.hidden = false; }
     function hideJoinError() { el.joinError.hidden = true; }
 
@@ -1288,13 +1446,15 @@
 
     function maybeAutoResume() {
         var saved = loadRoom();
-        if (!saved || !saved.code) return;
+        if (!saved || !saved.code || !saved.session_token) return;
+        conn.sessionToken = saved.session_token;
         conn.room = {
             code: saved.code,
             role: saved.role,
             client_id: storedClientId(),
             user_number: saved.user_number,
-            user_label: saved.user_label || roleLabel(saved.role)
+            user_label: saved.user_label || roleLabel(saved.role),
+            display_name: saved.display_name || ''
         };
         conn.clientId = storedClientId();
         showRoomView();
@@ -1308,10 +1468,18 @@
     function bind() {
         el.btnCreateRoom.addEventListener('click', createRoom);
         el.btnJoinRoom.addEventListener('click', joinRoom);
-        el.joinRoomInput.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') { event.preventDefault(); joinRoom(); }
+        [el.createDisplayName, el.createRoomPassword].forEach(function (input) {
+            input.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') { event.preventDefault(); createRoom(); }
+            });
+            input.addEventListener('input', hideCreateError);
         });
-        el.joinRoomInput.addEventListener('input', hideJoinError);
+        [el.joinDisplayName, el.joinRoomInput, el.joinRoomPassword].forEach(function (input) {
+            input.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') { event.preventDefault(); joinRoom(); }
+            });
+            input.addEventListener('input', hideJoinError);
+        });
         el.btnCopyCode.addEventListener('click', copyRoomCode);
         el.btnCopyCode2.addEventListener('click', copyRoomCode);
         el.btnLeaveRoom.addEventListener('click', requestLeave);
@@ -1346,8 +1514,13 @@
         el.lobbyView = $('lobby-view');
         el.roomView = $('room-view');
         el.btnCreateRoom = $('btn-create-room');
+        el.createDisplayName = $('create-display-name');
+        el.createRoomPassword = $('create-room-password');
+        el.createError = $('create-error');
         el.btnJoinRoom = $('btn-join-room');
+        el.joinDisplayName = $('join-display-name');
         el.joinRoomInput = $('join-room-input');
+        el.joinRoomPassword = $('join-room-password');
         el.joinError = $('join-error');
         el.createdRoomBox = $('created-room-box');
         el.roomCodeOutput = $('room-code-output');
@@ -1356,10 +1529,13 @@
         el.roomCodeChip = $('room-code-chip');
         el.btnLeaveRoom = $('btn-leave-room');
         el.connPill = $('conn-pill');
+        el.roomParticipants = $('room-participants');
         el.youSessionBadge = $('you-session-badge');
         el.youUserLabel = $('you-user-label');
+        el.youSeatLabel = $('you-seat-label');
         el.youRoleTag = $('you-role-tag');
         el.otherUserLabel = $('other-user-label');
+        el.otherSeatLabel = $('other-seat-label');
         el.otherRoleTag = $('other-role-tag');
         el.youCamBadge = $('you-cam-badge');
         el.youRecognitionBadge = $('you-recognition-badge');

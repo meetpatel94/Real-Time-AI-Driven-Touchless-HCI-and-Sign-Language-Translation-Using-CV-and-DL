@@ -12,6 +12,8 @@ room-wide camera lock and it never blocks either browser participant.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import secrets
 import threading
@@ -32,17 +34,87 @@ _MAX_GESTURE_MEANING_LENGTH = 180
 _MAX_GESTURE_SYMBOL_LENGTH = 32
 _MAX_EVENT_ID_LENGTH = 96
 _MAX_SEEN_EVENT_IDS = 240
+_MAX_DISPLAY_NAME_LENGTH = 40
+_MIN_ROOM_PASSWORD_LENGTH = 4
+_MAX_ROOM_PASSWORD_LENGTH = 128
+_MAX_SESSION_TOKEN_LENGTH = 512
+
+_ERROR_MESSAGES = {
+    "display_name_required": "Display name is required.",
+    "display_name_too_long": "Display name must be 40 characters or fewer.",
+    "room_password_required": "Room password is required.",
+    "room_password_too_short": "Room password must be at least 4 characters.",
+    "room_password_too_long": "Room password must be 128 characters or fewer.",
+    "room_code_required": "Room code is required.",
+    "invalid_room": "That room does not exist or has expired.",
+    "authentication_failed": "Unable to authenticate for this room.",
+    "room_full": "Room is full. A Connect room supports exactly two participants.",
+}
+
+
+def _session_token_digest(token: str) -> str:
+    """Hash an opaque session token before keeping it in process memory."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+_PASSWORD_HASH_ITERATIONS = 210_000
+
+
+def _room_password_hash(password: str) -> str:
+    """Create a salted, intentionally slow password hash.
+
+    The format is local to the ephemeral room service and keeps plaintext room
+    passwords out of memory after the create/join API call returns.
+    """
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        _PASSWORD_HASH_ITERATIONS,
+    )
+    return "pbkdf2_sha256${}${}${}".format(
+        _PASSWORD_HASH_ITERATIONS,
+        salt.hex(),
+        derived.hex(),
+    )
+
+
+def _room_password_matches(password_hash: str, password: str) -> bool:
+    try:
+        scheme, iterations, salt_hex, expected_hex = password_hash.split("$", 3)
+        if scheme != "pbkdf2_sha256":
+            return False
+        rounds = int(iterations)
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(expected_hex)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, rounds)
+        return hmac.compare_digest(actual, expected)
+    except (TypeError, ValueError):
+        return False
 
 
 class Participant:
-    """One independent browser participant in a room."""
+    """One independent browser participant in a room.
 
-    def __init__(self, client_id: str, role: str, display_name: str) -> None:
+    The session credential is deliberately kept separate from the public
+    participant fields.  Only its digest is retained here; the raw token is
+    returned once by the same-origin room API and is never included in a WebSocket
+    payload or participant summary.
+    """
+
+    def __init__(
+        self,
+        client_id: str,
+        role: str,
+        display_name: str,
+        session_token_hash: str = "",
+    ) -> None:
         self.client_id = client_id
         self.role = role
         self.user_number = 1 if role == _ROLE_CREATOR else 2
-        default_name = f"User {self.user_number}"
-        self.display_name = display_name or default_name
+        self.display_name = str(display_name or "").strip()
+        self._session_token_hash = session_token_hash
         self.ws: Any = None
         self.connected = False
         self.camera_active = False
@@ -54,6 +126,21 @@ class Participant:
     @property
     def user_label(self) -> str:
         return f"User {self.user_number}"
+
+    def issue_session_token(self) -> str:
+        """Rotate and return a raw token; only its digest is stored."""
+        token = secrets.token_urlsafe(32)
+        self._session_token_hash = _session_token_digest(token)
+        return token
+
+    def accepts_session_token(self, token: Any) -> bool:
+        value = str(token or "")
+        if not value or len(value) > _MAX_SESSION_TOKEN_LENGTH:
+            return False
+        return bool(self._session_token_hash) and secrets.compare_digest(
+            self._session_token_hash,
+            _session_token_digest(value),
+        )
 
     def attach(self, ws: Any) -> None:
         self.ws = ws
@@ -82,14 +169,23 @@ class Participant:
 
 
 class Room:
-    """A private two-person communication room."""
+    """A private two-person communication room.
 
-    def __init__(self, code: str) -> None:
+    ``_password_hash`` is intentionally private and is never included in a
+    snapshot, status response, history entry, or peer summary.
+    """
+
+    def __init__(self, code: str, password_hash: str) -> None:
         self.code = code
+        self._password_hash = password_hash
         self.created_at = time.time()
         self.last_activity = time.time()
         self.participants: Dict[str, Participant] = {}
         self.history: Deque[Dict[str, Any]] = deque(maxlen=int(Config.CONNECT_ROOM_HISTORY_LIMIT))
+
+    def accepts_password(self, password: Any) -> bool:
+        value = str(password if password is not None else "")
+        return bool(value and self._password_hash and _room_password_matches(self._password_hash, value))
 
     @property
     def connected_count(self) -> int:
@@ -112,6 +208,7 @@ class Room:
             "role": resolved_role,
             "user_number": 1 if resolved_role == _ROLE_CREATOR else 2,
             "user_label": "User 1" if resolved_role == _ROLE_CREATOR else "User 2",
+            "display_name": participant.display_name if participant else "",
             "participants": self._participant_summary(),
             "history": list(self.history),
             "ts": time.time(),
@@ -125,7 +222,7 @@ class Room:
         the legacy ``seat`` key and never use that compatibility path.
         """
         summary = []
-        for participant in self.participants.values():
+        for participant in sorted(self.participants.values(), key=lambda item: item.user_number):
             item = {
                 "client_id": participant.client_id,
                 "role": participant.role,
@@ -234,6 +331,187 @@ class ConnectRoomService:
     def _new_client_id(self) -> str:
         return "gf-" + uuid.uuid4().hex[:20]
 
+    @staticmethod
+    def _validated_display_name(value: Any) -> Tuple[Optional[str], Optional[str]]:
+        name = str(value or "").strip()
+        if not name:
+            return None, "display_name_required"
+        if len(name) > _MAX_DISPLAY_NAME_LENGTH:
+            return None, "display_name_too_long"
+        return name, None
+
+    @staticmethod
+    def _validated_room_password(value: Any) -> Tuple[Optional[str], Optional[str]]:
+        # Password whitespace is meaningful and is not stripped before
+        # hashing.  A whitespace-only value is still rejected as empty.
+        password = str(value if value is not None else "")
+        if not password.strip():
+            return None, "room_password_required"
+        if len(password) < _MIN_ROOM_PASSWORD_LENGTH:
+            return None, "room_password_too_short"
+        if len(password) > _MAX_ROOM_PASSWORD_LENGTH:
+            return None, "room_password_too_long"
+        return password, None
+
+    @staticmethod
+    def _result_error(code: str, message: Optional[str] = None) -> Dict[str, Any]:
+        return {
+            "success": False,
+            "error": code,
+            "message": message or _ERROR_MESSAGES.get(code, "Unable to complete the room request."),
+        }
+
+    @staticmethod
+    def _participant_identity(participant: Participant) -> Dict[str, Any]:
+        """Return the public identity/state-independent participant fields."""
+        return {
+            "client_id": participant.client_id,
+            "role": participant.role,
+            "user_number": participant.user_number,
+            "user_label": participant.user_label,
+            "display_name": participant.display_name,
+        }
+
+    def _auth_result(self, room: Room, participant: Participant, token: str) -> Dict[str, Any]:
+        # This is the only response that carries the opaque session token.  It
+        # is not a password and it is never copied to a peer or room status.
+        return {
+            "success": True,
+            "code": room.code,
+            "ws_path": Config.CONNECT_WS_PATH,
+            "session_token": token,
+            "participant": self._participant_identity(participant),
+        }
+
+    # ------------------------------------------------------------------
+    # Authenticated room API operations
+    # ------------------------------------------------------------------
+    def create_room(
+        self,
+        display_name: Any,
+        password: Any,
+        client_id: Any = None,
+    ) -> Dict[str, Any]:
+        """Create a room and issue an opaque token for its creator.
+
+        The HTTP route calls this before opening the WebSocket.  Keeping the
+        password operation outside the relay means create/join WebSocket
+        messages contain only an already-issued session token and identity
+        metadata; a password can never be relayed to the other participant.
+        """
+        name, name_error = self._validated_display_name(display_name)
+        if name_error:
+            return self._result_error(name_error)
+        room_password, password_error = self._validated_room_password(password)
+        if password_error:
+            return self._result_error(password_error)
+
+        resolved_client_id = str(client_id or "")
+        if not self._valid_client_id(resolved_client_id):
+            resolved_client_id = self._new_client_id()
+
+        with self._lock:
+            self._purge_rooms()
+            room = Room(
+                self._generate_code(),
+                _room_password_hash(room_password),
+            )
+            participant = Participant(resolved_client_id, _ROLE_CREATOR, name)
+            token = participant.issue_session_token()
+            room.participants[resolved_client_id] = participant
+            self._rooms[room.code] = room
+            self._record_activity(room)
+            logger.info(f"Connect room created: {room.code} ({resolved_client_id}, User 1)")
+            return self._auth_result(room, participant, token)
+
+    def join_room(
+        self,
+        code: Any,
+        display_name: Any,
+        password: Any,
+        client_id: Any = None,
+    ) -> Dict[str, Any]:
+        """Authenticate a join request and issue a token for User 2.
+
+        Password failures intentionally use one generic authentication error;
+        the server does not disclose whether a code is occupied by a particular
+        participant or whether only the password was wrong.
+        """
+        normalized_code = self._normalize_code(code)
+        if not normalized_code:
+            return self._result_error("room_code_required")
+        name, name_error = self._validated_display_name(display_name)
+        if name_error:
+            return self._result_error(name_error)
+        room_password, password_error = self._validated_room_password(password)
+        if password_error:
+            return self._result_error(password_error)
+
+        resolved_client_id = str(client_id or "")
+        if not self._valid_client_id(resolved_client_id):
+            resolved_client_id = self._new_client_id()
+
+        with self._lock:
+            self._purge_rooms()
+            room = self._rooms.get(normalized_code)
+            if room is None:
+                return self._result_error("invalid_room")
+            if not room.accepts_password(room_password):
+                return self._result_error("authentication_failed")
+
+            existing = room.participants.get(resolved_client_id)
+            if existing is not None:
+                # A re-authenticated browser keeps its original seat and
+                # identity.  Rotate its opaque token rather than creating a
+                # third participant.
+                token = existing.issue_session_token()
+                self._record_activity(room)
+                return self._auth_result(room, existing, token)
+
+            if len(room.participants) >= self.max_participants:
+                return self._result_error("room_full")
+
+            # Normally the creator is already present, so a new participant is
+            # User 2.  If User 1 explicitly left, preserve the original
+            # two-seat model by allowing the next authenticated participant to
+            # occupy the open creator seat rather than creating User 3 or two
+            # joiners.
+            role = (
+                _ROLE_JOINER
+                if any(p.role == _ROLE_CREATOR for p in room.participants.values())
+                else _ROLE_CREATOR
+            )
+            participant = Participant(resolved_client_id, role, name)
+            token = participant.issue_session_token()
+            room.participants[resolved_client_id] = participant
+            self._record_activity(room)
+            logger.info(f"Participant joined Connect room {room.code}: {resolved_client_id} ({role})")
+            return self._auth_result(room, participant, token)
+
+    def room_status(
+        self,
+        code: Any,
+        client_id: Any = None,
+        session_token: Any = None,
+    ) -> Dict[str, Any]:
+        """Return safe room status for an authenticated participant only."""
+        normalized_code = self._normalize_code(code)
+        with self._lock:
+            self._purge_rooms()
+            room = self._rooms.get(normalized_code)
+            if room is None:
+                return self._result_error("invalid_room")
+            participant = room.participants.get(str(client_id or ""))
+            if participant is None or not participant.accepts_session_token(session_token):
+                return self._result_error("authentication_failed")
+            return {
+                "success": True,
+                "code": room.code,
+                "connected_count": room.connected_count,
+                "max_participants": self.max_participants,
+                "participants": room._participant_summary(self._legacy_source),
+            }
+
     # ------------------------------------------------------------------
     # Lifecycle and relay helpers
     # ------------------------------------------------------------------
@@ -323,79 +601,60 @@ class ConnectRoomService:
             self._send_error(ws, "bad_request", f"Unknown message type '{message_type}'.")
 
     # ------------------------------------------------------------------
-    # Room creation / joining / resume
+    # Authenticated WebSocket attach / resume
     # ------------------------------------------------------------------
-    def _handle_create(self, ws: Any, payload: Dict[str, Any]) -> None:
-        client_id = payload.get("client_id") or ""
-        if not self._valid_client_id(client_id):
-            client_id = self._new_client_id()
-        display_name = self._bounded_text(payload.get("display_name"), 40)
+    def _handle_authenticated_attach(
+        self,
+        ws: Any,
+        payload: Dict[str, Any],
+        expected_role: Optional[str] = None,
+    ) -> None:
+        """Attach a WebSocket using the opaque token issued by the room API.
 
-        with self._lock:
-            self._purge_rooms()
-            room = Room(self._generate_code())
-            participant = Participant(client_id, _ROLE_CREATOR, display_name)
-            participant.attach(ws)
-            room.participants[client_id] = participant
-            self._rooms[room.code] = room
-            self._ws_index[id(ws)] = (room.code, client_id)
-            self._record_activity(room)
-            self._safe_send(ws, room.snapshot_for(client_id, _ROLE_CREATOR))
-            self._send_peers(room)
-            logger.info(f"Connect room created: {room.code} ({client_id}, User 1)")
-
-    def _handle_join(self, ws: Any, payload: Dict[str, Any]) -> None:
-        code = self._normalize_code(payload.get("code"))
-        client_id = payload.get("client_id") or ""
-        if not self._valid_client_id(client_id):
-            client_id = self._new_client_id()
-        display_name = self._bounded_text(payload.get("display_name"), 40)
-
-        with self._lock:
-            self._purge_rooms()
-            room = self._rooms.get(code)
-            if room is None:
-                self._send_error(ws, "invalid_room", f"Room '{code}' does not exist or has expired.")
-                return
-            if client_id in room.participants:
-                self._resume_participant(room, client_id, ws)
-                return
-            if len(room.participants) >= self.max_participants:
-                self._send_error(
-                    ws,
-                    "room_full",
-                    "Room is full. A Connect room supports exactly two participants.",
-                )
-                return
-            role = (
-                _ROLE_JOINER
-                if _ROLE_CREATOR in {participant.role for participant in room.participants.values()}
-                else _ROLE_CREATOR
+        Passwords are deliberately rejected here.  Authentication happens via
+        the HTTP room API so a relay message can never contain a room password.
+        """
+        if "password" in payload or "room_password" in payload:
+            self._send_error(
+                ws,
+                "bad_request",
+                "Authenticate through the Connect room API before opening the room WebSocket.",
             )
-            participant = Participant(client_id, role, display_name)
-            participant.attach(ws)
-            room.participants[client_id] = participant
-            self._ws_index[id(ws)] = (room.code, client_id)
-            self._record_activity(room)
-            self._safe_send(ws, room.snapshot_for(client_id, role))
-            self._send_peers(room)
-            logger.info(f"Participant joined Connect room {room.code}: {client_id} ({role})")
+            return
 
-    def _handle_resume(self, ws: Any, payload: Dict[str, Any]) -> None:
         code = self._normalize_code(payload.get("code"))
         client_id = str(payload.get("client_id") or "")
-        role = str(payload.get("role") or "").lower()
+        token = payload.get("session_token")
+        requested_role = str(payload.get("role") or "").lower()
+        if not code or not self._valid_client_id(client_id) or not token:
+            self._send_error(ws, "authentication_required", _ERROR_MESSAGES["authentication_failed"])
+            return
+
         with self._lock:
             self._purge_rooms()
             room = self._rooms.get(code)
+            participant = room.participants.get(client_id) if room else None
+            role_matches = (
+                participant is not None
+                and (not expected_role or participant.role == expected_role)
+                and (not requested_role or participant.role == requested_role)
+            )
             if room is None:
-                self._send_error(ws, "invalid_room", "Room has expired. Create or join a new room.")
+                self._send_error(ws, "invalid_room", _ERROR_MESSAGES["invalid_room"])
                 return
-            participant = room.participants.get(client_id)
-            if participant is None or (role and participant.role != role):
-                self._send_error(ws, "invalid_session", "This browser session no longer belongs to the room.")
+            if not role_matches or not participant.accepts_session_token(token):
+                self._send_error(ws, "invalid_session", _ERROR_MESSAGES["authentication_failed"])
                 return
             self._resume_participant(room, client_id, ws)
+
+    def _handle_create(self, ws: Any, payload: Dict[str, Any]) -> None:
+        self._handle_authenticated_attach(ws, payload, _ROLE_CREATOR)
+
+    def _handle_join(self, ws: Any, payload: Dict[str, Any]) -> None:
+        self._handle_authenticated_attach(ws, payload, _ROLE_JOINER)
+
+    def _handle_resume(self, ws: Any, payload: Dict[str, Any]) -> None:
+        self._handle_authenticated_attach(ws, payload)
 
     def _resume_participant(self, room: Room, client_id: str, ws: Any) -> None:
         participant = room.participants[client_id]
