@@ -247,6 +247,22 @@ class GestureEngine:
                     self._adaptive_error_logged = True
 
             # --------------------------------------------------
+            # GLOBAL RIGHT-HAND PAGE SCROLL
+            # --------------------------------------------------
+            # This is intentionally independent from the Custom Gestures
+            # workspace and from pose classification.  The controller receives
+            # only the existing right-hand MediaPipe landmarks and emits a
+            # direction/distance event for the browser's current page.
+            if (
+                right_hand
+                and state["gesture_enabled"]
+                and state.get("hand_scroll_enabled", True)
+            ):
+                scroll_controller.process_hand(right_hand)
+            else:
+                scroll_controller.reset()
+
+            # --------------------------------------------------
             # ADAPTIVE OBSERVATION LAYER
             # --------------------------------------------------
             # Classify for observation even when Air Gesture execution is off;
@@ -362,7 +378,9 @@ class GestureEngine:
                     inference_worker.notify_no_hand()
 
             # --------------------------------------------------
-            # 2. RIGHT HAND PIPELINE (AIR MOUSE + FIST + SCROLL)
+            # 2. RIGHT HAND PIPELINE (AIR MOUSE + FIST)
+            # Global movement scrolling was already processed above and stays
+            # available in every module, including Custom Gestures.
             # --------------------------------------------------
             if right_hand and state["gesture_enabled"] and not custom_mode_active:
                 gesture = right_gesture
@@ -386,21 +404,15 @@ class GestureEngine:
                     confidence_override=personalized_sign_confidence,
                 )
                 
-                # Preserve the existing swipe controller unless a validated
-                # personalized mapping owns this observation.
-                if not personalized_mapping_active:
-                    scroll_controller.process_hand(right_hand, is_fist)
-
                 if fist_status["committed"]:
                     logger.info(f"Fist Confirmation -> Appended letter: '{recognition_state.last_confirmed_letter}'")
 
                 if personalized_mapping_active:
-                    # A validated mapping owns the whole right-hand frame; do
-                    # not also move, dwell-click, scroll, or commit a legacy
-                    # fist/sentence action for the same pose.
+                    # A validated mapping owns the legacy right-hand actions;
+                    # it does not alter the independent global movement-scroll
+                    # relay that was evaluated above.
                     dwell_controller.reset()
                     self.smoother.reset()
-                    scroll_controller.reset()
                     global_state.update_state({
                         "hand_detected": True,
                         "gesture": gesture.value,
@@ -454,7 +466,6 @@ class GestureEngine:
                 recognition_state.set_right_gesture("NONE")
                 dwell_controller.reset()
                 self.smoother.reset()
-                scroll_controller.reset()
                 global_state.update_state({
                     "hand_detected": (left_hand is not None or right_hand is not None),
                     "gesture": GestureType.NONE.value,

@@ -104,8 +104,8 @@
                         <span class="btn-toggle-text">CAMERA OFF</span>
                     </button>
                 </div>
-                <div class="control-group" data-tooltip="Air Gesture ON/OFF">
-                    <span class="control-label">Air Gesture</span>
+                <div class="control-group" data-tooltip="Air Gesture & Global Hand Scroll ON/OFF">
+                    <span class="control-label">Air Gesture + Scroll</span>
                     <button id="btn-toggle-gesture" class="btn-toggle">
                         <span class="btn-toggle-icon">🛑</span>
                         <span class="btn-toggle-text">AIR GESTURE OFF</span>
@@ -255,6 +255,7 @@
     </section>
 
     <script src="{{ url_for('static', filename='js/global/navigation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/hand_scroll_controller.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/state_client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/gesture_client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/adaptive_client.js') }}"></script>

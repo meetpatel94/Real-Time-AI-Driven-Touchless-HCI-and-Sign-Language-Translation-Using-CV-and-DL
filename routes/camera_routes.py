@@ -71,6 +71,12 @@ def update_scroll_sensitivity():
     scroll_controller.set_sensitivity(level)
     return jsonify({"status": "success", "level": level})
 
+@camera_bp.route("/api/hand-scroll/events", methods=["GET"])
+def get_hand_scroll_events():
+    """Relay shared right-hand scroll events to the active application page."""
+    return jsonify(global_state.hand_scroll_events_since(request.args.get("after", 0)))
+
+
 @camera_bp.route("/api/state", methods=["GET"])
 def get_state():
     return jsonify(global_state.get_state())
