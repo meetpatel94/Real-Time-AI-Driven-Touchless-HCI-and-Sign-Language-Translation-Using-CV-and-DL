@@ -31,6 +31,22 @@ from core.custom_gestures.feature_extractor import (
     vector_distance,
 )
 from core.custom_gestures.learning import CustomGestureLearningStore, best_similarity
+from core.custom_gestures.gesture_dna import (
+    compute_current_dna,
+    compute_dna_from_samples,
+    dna_match_level,
+    dna_similarity,
+    aggregate_dna,
+)
+from core.custom_gestures.gesture_coach import (
+    coach_capture_feedback,
+    coach_live_feedback,
+    coach_test_feedback,
+)
+from core.custom_gestures.gesture_analytics import (
+    compute_analytics,
+    log_recognition_event,
+)
 from services.logging_service import logger
 
 
@@ -929,6 +945,18 @@ class CustomGestureService:
                 return dict(self._runtime)
 
             quality = feature_extractor.tracking_quality(selected_hand)
+            # Update last observation for coach feedback during capture
+            try:
+                self._last_stable_observation = {
+                    "gesture_id": session.gesture_id,
+                    "features": feature_extractor.feature_vector(selected_hand),
+                    "handedness": handedness,
+                    "confidence": 0.0,
+                    "at": time.monotonic(),
+                    "landmarks": selected_hand,
+                }
+            except Exception:
+                pass
             if quality < self.min_tracking_quality:
                 self._runtime.update({
                     "status": "LOW_QUALITY",
@@ -961,6 +989,16 @@ class CustomGestureService:
             sample_path = os.path.join(self._gesture_dir(session.gesture_id), f"sample_{next_index:03d}.json")
             self._write_json_atomic(sample_path, sample)
             self._last_capture_time = now
+
+            # Store current observation for coach feedback during capture
+            self._last_stable_observation = {
+                "gesture_id": session.gesture_id,
+                "features": sample.get("features", []),
+                "handedness": handedness,
+                "confidence": 0.0,
+                "at": time.monotonic(),
+                "landmarks": selected_hand,
+            }
 
             features = self._load_sample_features(session.gesture_id)
             prototype = mean_vector(features)
@@ -1236,6 +1274,17 @@ class CustomGestureService:
             obs_features = hand_features.get(obs_handedness)
 
             correction_info = None
+            # Determine current landmarks for coach feedback
+            obs_landmarks = None
+            if obs_handedness == "right" and right_hand is not None:
+                obs_landmarks = right_hand
+            elif obs_handedness == "left" and left_hand is not None:
+                obs_landmarks = left_hand
+            elif right_hand is not None:
+                obs_landmarks = right_hand
+            elif left_hand is not None:
+                obs_landmarks = left_hand
+
             if detected_id:
                 if mode == "live":
                     self._record_detection_episode(detected_id)
@@ -1245,7 +1294,12 @@ class CustomGestureService:
                     "handedness": obs_handedness,
                     "confidence": confidence,
                     "at": time.monotonic(),
+                    "landmarks": obs_landmarks,
                 }
+                # Log recognition event for analytics (on-demand, not per-frame expensive)
+                self._log_recognition_for_analytics(
+                    detected_id, confidence, confidence, matched=True, source=mode
+                )
                 if mode == "live":
                     self._record_evolution_observation(
                         detected_id, obs_handedness, confidence, left_hand, right_hand
@@ -1259,6 +1313,11 @@ class CustomGestureService:
             else:
                 self._last_stable_observation = None
                 self._last_detected_id = ""
+                # Log unknown recognition event for analytics
+                if mode == "test" and expected_id:
+                    self._log_recognition_for_analytics(
+                        expected_id, confidence, confidence, matched=False, source="test"
+                    )
                 if mode == "live":
                     self._record_unknown_observation(left_hand, right_hand)
 
@@ -1326,6 +1385,31 @@ class CustomGestureService:
             return
         self._last_detected_id = gesture_id
         self._update_gesture_stats(gesture_id, detections=1, last_detected_at=_utc_now())
+
+    def _log_recognition_for_analytics(
+        self, gesture_id: str, confidence: float, similarity: float,
+        matched: bool = True, source: str = "live",
+    ) -> None:
+        """Log a recognition event to the gesture's analytics history.
+
+        Only fires when the gesture_id changes or at most every 2 seconds
+        to avoid excessive disk I/O on every camera frame.
+        """
+        now = time.monotonic()
+        last_log = getattr(self, "_last_analytics_log_time", {}).get(gesture_id, 0.0)
+        if now - last_log < 2.0 and matched:
+            return
+        try:
+            metadata = self._load_metadata(gesture_id)
+            if metadata is None:
+                return
+            log_recognition_event(metadata, confidence, similarity, matched, source)
+            self._save_metadata(metadata)
+            if not hasattr(self, "_last_analytics_log_time"):
+                self._last_analytics_log_time = {}
+            self._last_analytics_log_time[gesture_id] = now
+        except Exception as exc:
+            logger.warning(f"Analytics log skipped for {gesture_id}: {exc}")
 
     def _update_gesture_stats(self, gesture_id: str, **increments: Any) -> None:
         try:
@@ -1640,6 +1724,296 @@ class CustomGestureService:
                     "corrections": corrections,
                 },
             }
+
+    # ------------------------------------------------------------------
+    # Gesture DNA (Feature 1)
+    # ------------------------------------------------------------------
+    def gesture_dna(self, gesture_id: Any) -> Dict[str, Any]:
+        """Compute the stored Gesture DNA profile from actual samples."""
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return {"success": False, "error": "Custom gesture not found."}
+        sample_paths = self._sample_paths(safe_id)
+        variation_paths = self._variation_paths(safe_id)
+        dna = compute_dna_from_samples(sample_paths, self._read_json)
+        if not dna or dna.get("sample_count", 0) == 0:
+            return {"success": False, "error": "No samples available to compute DNA."}
+        return {
+            "success": True,
+            "dna": dna,
+            "gesture_id": safe_id,
+            "gesture_name": metadata.get("gesture_name", safe_id),
+            "sample_count": dna.get("sample_count", 0),
+        }
+
+    def current_dna_and_comparison(self, gesture_id: Any) -> Dict[str, Any]:
+        """Compare the current observation's DNA against the stored DNA.
+
+        Uses the last stable observation if available, otherwise returns
+        the stored DNA only.
+        """
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return {"success": False, "error": "Custom gesture not found."}
+        sample_paths = self._sample_paths(safe_id)
+        stored_dna = compute_dna_from_samples(sample_paths, self._read_json)
+        if not stored_dna or stored_dna.get("sample_count", 0) == 0:
+            return {"success": False, "error": "No samples to compute stored DNA."}
+
+        observation = self._last_stable_observation
+        if not observation or not observation.get("features"):
+            return {
+                "success": True,
+                "stored_dna": stored_dna,
+                "current_dna": None,
+                "similarity": None,
+                "match_level": None,
+                "gesture_id": safe_id,
+            }
+
+        # Reconstruct landmarks from the stored observation features
+        # Since we store the full raw_landmarks in samples, but the observation
+        # only has features, we compare feature vectors via DNA dimensions
+        # We need actual landmarks; use them from the current stable observation
+        current_landmarks = observation.get("landmarks")
+        if not current_landmarks:
+            # Fallback: compute similarity from stored features directly
+            obs_features = observation.get("features", [])
+            prototype = metadata.get("prototype", [])
+            if prototype and obs_features:
+                dist = vector_distance(obs_features, prototype)
+                sim = max(0.0, min(1.0, 1.0 - (dist / max(self.max_match_distance, 1e-6))))
+                return {
+                    "success": True,
+                    "stored_dna": stored_dna,
+                    "current_dna": None,
+                    "feature_similarity": round(sim * 100.0, 1),
+                    "similarity": round(sim * 100.0, 1),
+                    "match_level": dna_match_level(sim * 100.0),
+                    "gesture_id": safe_id,
+                }
+            return {
+                "success": True,
+                "stored_dna": stored_dna,
+                "current_dna": None,
+                "similarity": None,
+                "match_level": None,
+                "gesture_id": safe_id,
+            }
+
+        current_dna = compute_current_dna(current_landmarks)
+        sim = dna_similarity(current_dna, stored_dna)
+        return {
+            "success": True,
+            "stored_dna": stored_dna,
+            "current_dna": current_dna,
+            "similarity": round(sim, 1),
+            "match_level": dna_match_level(sim),
+            "gesture_id": safe_id,
+        }
+
+    # ------------------------------------------------------------------
+    # AI Gesture Coach (Feature 2)
+    # ------------------------------------------------------------------
+    def coach_feedback(self, gesture_id: Any) -> Dict[str, Any]:
+        """Return AI coach feedback for the given gesture.
+
+        During test mode, compares current vs stored DNA.
+        During capture mode, evaluates sample quality.
+        During live/idle, provides general tips.
+        """
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return {"success": False, "error": "Custom gesture not found."}
+
+        mode = self._runtime.get("mode", "idle")
+        sample_paths = self._sample_paths(safe_id)
+        stored_dna = compute_dna_from_samples(sample_paths, self._read_json)
+
+        if mode == "capture":
+            # Capture coach: evaluate current hand for sample quality
+            observation = self._last_stable_observation
+            if observation and observation.get("landmarks"):
+                fb = coach_capture_feedback(observation["landmarks"], stored_dna)
+                return {"success": True, "coach": fb, "mode": "capture"}
+            # Fallback: no observation yet
+            return {
+                "success": True,
+                "coach": {
+                    "sample_quality": 0.0,
+                    "issues": ["Waiting for hand detection..."],
+                    "guidance": ["Show your hand to the camera to start capture."],
+                    "dimensions": {},
+                },
+                "mode": "capture",
+            }
+
+        if mode in ("test", "live"):
+            # Test/Live coach: compare current vs stored
+            runtime = self._runtime
+            confidence = float(runtime.get("confidence", 0.0) or 0.0)
+            detected_name = runtime.get("prediction", "Unknown")
+            expected_name = metadata.get("gesture_name", safe_id)
+
+            observation = self._last_stable_observation
+            if observation and observation.get("landmarks") and stored_dna and stored_dna.get("sample_count", 0) > 0:
+                fb = coach_test_feedback(
+                    current_landmarks=observation["landmarks"],
+                    stored_dna=stored_dna,
+                    expected_gesture_name=expected_name,
+                    detected_gesture_name=detected_name,
+                    confidence=confidence,
+                    similarity_pct=confidence,  # Use confidence as proxy
+                )
+                return {"success": True, "coach": fb, "mode": mode}
+
+            # Feature-level comparison without landmarks
+            obs_features = observation.get("features") if observation else None
+            prototype = metadata.get("prototype", [])
+            if obs_features and prototype:
+                dist = vector_distance(obs_features, prototype)
+                sim = max(0.0, min(1.0, 1.0 - (dist / max(self.max_match_distance, 1e-6))))
+                sim_pct = round(sim * 100.0, 1)
+                tips = []
+                if sim_pct >= 90.0:
+                    feedback = "Excellent match."
+                elif sim_pct >= 75.0:
+                    feedback = "Good match."
+                elif sim_pct >= 60.0:
+                    feedback = "Partial match. Adjust your gesture."
+                    tips.append("Try to match the saved gesture shape more closely.")
+                else:
+                    feedback = "Low match. The gesture differs significantly from the stored profile."
+                    tips.append("Consider recapturing samples with more variation.")
+                return {
+                    "success": True,
+                    "coach": {
+                        "similarity": sim_pct,
+                        "match_level": dna_match_level(sim_pct),
+                        "feedback": feedback,
+                        "tips": tips,
+                    },
+                    "mode": mode,
+                }
+
+            return {
+                "success": True,
+                "coach": {
+                    "feedback": "Show the gesture to get coach feedback.",
+                    "tips": ["Hold the gesture steady in front of the camera."],
+                },
+                "mode": mode,
+            }
+
+        # Idle mode
+        return {
+            "success": True,
+            "coach": {
+                "feedback": "Start a test or live recognition to get coach feedback.",
+                "tips": [],
+            },
+            "mode": "idle",
+        }
+
+    def capture_coach_feedback(self) -> Dict[str, Any]:
+        """Real-time coach feedback during capture (no gesture_id needed).
+
+        Uses the current runtime observation and the gesture being captured.
+        """
+        session = self._capture_session
+        if not session:
+            return {"success": False, "error": "No capture session active."}
+
+        safe_id = session.gesture_id
+        metadata = self._load_metadata(safe_id)
+        sample_paths = self._sample_paths(safe_id)
+        stored_dna = compute_dna_from_samples(sample_paths, self._read_json) if sample_paths else None
+
+        # Try to get current landmarks from the observation
+        observation = self._last_stable_observation
+        if observation and observation.get("landmarks"):
+            fb = coach_capture_feedback(observation["landmarks"], stored_dna)
+            return {"success": True, "coach": fb, "gesture_id": safe_id}
+
+        # No observation yet
+        return {
+            "success": True,
+            "coach": {
+                "sample_quality": 0.0,
+                "issues": ["No hand detected yet."],
+                "guidance": ["Show your hand to the camera to begin."],
+                "dimensions": {},
+            },
+            "gesture_id": safe_id,
+        }
+
+    # ------------------------------------------------------------------
+    # Gesture Quality & Analytics (Feature 3)
+    # ------------------------------------------------------------------
+    def gesture_analytics(self, gesture_id: Any) -> Dict[str, Any]:
+        """Compute analytics and quality metrics for a gesture."""
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return {"success": False, "error": "Custom gesture not found."}
+        sample_paths = self._sample_paths(safe_id)
+        variation_paths = self._variation_paths(safe_id)
+        return compute_analytics(metadata, sample_paths, variation_paths, self._read_json)
+
+    # ------------------------------------------------------------------
+    # Combined gesture details (DNA + Coach + Analytics in one call)
+    # ------------------------------------------------------------------
+    def gesture_full_details(self, gesture_id: Any) -> Dict[str, Any]:
+        """Return a comprehensive gesture detail view with DNA, coach, and analytics.
+
+        This is the main endpoint for the enhanced Custom Gesture details UI.
+        Analytics are computed on demand (not per-frame).
+        """
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return {"success": False, "error": "Custom gesture not found."}
+
+        sample_paths = self._sample_paths(safe_id)
+        variation_paths = self._variation_paths(safe_id)
+
+        # DNA
+        dna = compute_dna_from_samples(sample_paths, self._read_json)
+
+        # Analytics
+        analytics_result = compute_analytics(metadata, sample_paths, variation_paths, self._read_json)
+        analytics = analytics_result.get("analytics", {})
+
+        # Coach feedback
+        coach = self.coach_feedback(safe_id)
+        coach_data = coach.get("coach", {}) if coach.get("success") else {}
+
+        # DNA comparison with current observation
+        dna_comparison = self.current_dna_and_comparison(safe_id)
+
+        gesture = self._public_record(metadata)
+        gesture.update({
+            "sample_features_count": len(self._load_sample_features(safe_id)),
+            "variation_features_count": len(self._load_variation_features(safe_id)),
+        })
+
+        return {
+            "success": True,
+            "gesture": gesture,
+            "dna": dna,
+            "analytics": analytics,
+            "coach": coach_data,
+            "dna_comparison": {
+                "stored_dna": dna_comparison.get("stored_dna"),
+                "current_dna": dna_comparison.get("current_dna"),
+                "similarity": dna_comparison.get("similarity"),
+                "match_level": dna_comparison.get("match_level"),
+                "feature_similarity": dna_comparison.get("feature_similarity"),
+            },
+        }
 
     def overlay_lines(self) -> List[str]:
         """Small status summary for the camera frame overlay."""
