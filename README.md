@@ -122,38 +122,91 @@ different devices/browsers communicate as a true bidirectional room:
 * **Transport** — the relay uses Flask-Sock on the same Flask dev-server port
   (`flask-sock==0.7.0`); no polling is used for communication.
 
-### Running the two-device LAN test (PC + phone on the same Wi-Fi)
+### Two-Device HTTPS LAN Testing (PC + phone on the same Wi-Fi)
 
-The dev server is a local-only Flask server; it binds `0.0.0.0` so other
-devices on your LAN can reach it (do **not** expose it beyond your LAN):
+Mobile browsers only allow `navigator.mediaDevices.getUserMedia()` (camera
+access) from a **secure context**. `https://127.0.0.1` counts as secure, but
+a plain `http://192.168.x.x` LAN address does not — so a phone opening the
+HTTP LAN URL sees *"This browser does not provide a local camera."* while the
+PC (using `127.0.0.1`) works fine. The dev server now serves **HTTPS on the
+LAN** so both devices get real camera access. Gesture recognition, MediaPipe,
+Custom Gestures, the WebSocket room/relay architecture, and all existing
+Connect UI behavior are unchanged — only the transport is now HTTPS/WSS.
 
-1. Install dependencies and start the server on the PC:
+1. **Install/generate the development certificate (recommended: mkcert).**
+   Certificates are never committed to the repo (see `.gitignore`); each
+   developer generates their own local certificate:
+
+   ```bash
+   # one-time install of mkcert: https://github.com/FiloSottile/mkcert#installation
+   mkcert -install
+
+   # generate a certificate that covers localhost AND your PC's LAN IP
+   # (find your LAN IP first — see step 3), e.g.:
+   mkcert -cert-file certs/gestureforge-lan-cert.pem \
+          -key-file certs/gestureforge-lan-key.pem \
+          127.0.0.1 localhost 192.168.29.98
+   ```
+
+   If you skip this step, the app automatically falls back to Flask's
+   **ad-hoc self-signed certificate** (`pip install pyopenssl`, already in
+   `requirements.txt`) so HTTPS still works — this is a
+   **DEVELOPMENT / LAN TESTING ONLY** fallback, not a production security
+   solution. Each browser will show a one-time "connection is not private"
+   warning; choose *Advanced → Proceed* to continue. See `certs/README.md`
+   for details and troubleshooting.
+
+2. **Start GestureForge** on the PC:
 
    ```bash
    pip install -r requirements.txt
    python app.py
    ```
 
-   The startup log prints the LAN URL (e.g. `http://192.168.1.105:5000/connect`).
-   If it does not, find the PC's LAN IP with `ipconfig` (Windows) or
-   `ip addr` (Linux/macOS) and use `http://<LAN-IP>:5000/connect`.
+   The startup banner prints:
 
-2. **Device A (PC):** open `http://<LAN-IP>:5000/connect` → **Create Room**
-   and note the code shown (e.g. `GF-DH6G`) → **📋 Copy Code**.
+   ```
+   Local URL:
+     https://127.0.0.1:5000/connect
+   LAN URL:
+     https://<detected-LAN-IP>:5000/connect
+   ```
 
-3. **Device B (phone):** on the same Wi-Fi, open the *same*
-   `http://<LAN-IP>:5000/connect` → enter the room code → **Join Room**.
+   and reminds you: **"Use the HTTPS LAN URL on the second device."**
 
-Both devices talk to the same Flask + WebSocket server: the WebSocket URL is
-built from `window.location` (protocol + host of the opened page), so no
-`127.0.0.1`/`localhost` is hardcoded in the Connect client. Both sides show
-**Other User → Connected**; both local cameras can recognize and relay gestures
-at the same time, while text messages work in both directions. Browsers may
-require an HTTPS origin before allowing camera access on a LAN address.
+3. **Find the PC's LAN IP** if it wasn't auto-detected: `ipconfig` (Windows)
+   or `ip addr` / `ifconfig` (Linux/macOS), e.g. `192.168.29.98`.
 
-Troubleshooting: allow Python through the PC's firewall, keep both devices on
-the same network/subnet, and check that the router does not enable
-AP/client-isolation (which blocks device-to-device traffic).
+4. **Connect PC and phone to the same Wi-Fi network** (and make sure the
+   router does not enable AP/client isolation, which blocks device-to-device
+   traffic; also allow Python through the PC's firewall).
+
+5. **Open `https://<LAN-IP>:5000/connect` on both devices** — the PC can
+   also use `https://127.0.0.1:5000/connect`.
+
+6. **Allow camera permission on both devices** when the browser prompts —
+   this normal permission prompt only appears because the page is now served
+   over HTTPS.
+
+7. **PC creates the room** (**Create Room**, note the code, e.g. `GF-DH6G`).
+
+8. **Mobile joins using the room code** (enter the code → **Join Room**).
+
+Both devices talk to the same Flask + WebSocket server. The client builds the
+WebSocket URL from `window.location.protocol`/`window.location.host` (see
+`static/js/connect/connect.js`), so opening the page over `https://` makes it
+connect with `wss://` automatically — no `ws://`, `127.0.0.1`, or `localhost`
+is ever hardcoded. Both sides show **Other User → Connected**; both local
+cameras run MediaPipe/gesture recognition independently and relay gestures in
+both directions (User 1 ⇄ User 2), while text messages keep working the same
+way as before.
+
+**Important:** plain `http://<LAN-IP>:5000/connect` may still load the page,
+but mobile browsers will typically refuse camera access on that insecure
+origin — always use the `https://` LAN URL on the second device.
+
+To force plain HTTP (e.g. behind an external HTTPS-terminating proxy), set
+`GESTUREFORGE_DISABLE_HTTPS=1` before starting the app.
 
 ### MongoDB configuration
 
