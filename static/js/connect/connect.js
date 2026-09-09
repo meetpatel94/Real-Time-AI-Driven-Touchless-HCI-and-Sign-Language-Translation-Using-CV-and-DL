@@ -67,30 +67,67 @@
     }
 
     // ------------------------------------------------------------------
-    // Local storage helpers
+    // Storage helpers
+    //
+    // sessionStorage (per tab) is preferred so two browser tabs on the same
+    // machine act as two independent participants, while a reload in the same
+    // tab can still auto-resume its room. localStorage is the fallback for
+    // browsers without sessionStorage.
     // ------------------------------------------------------------------
+    function storage() {
+        try {
+            if (window.sessionStorage) {
+                window.sessionStorage.setItem('__gf_probe__', '1');
+                window.sessionStorage.removeItem('__gf_probe__');
+                return window.sessionStorage;
+            }
+        } catch (e) { /* fall through */ }
+        try { return window.localStorage; } catch (e2) { /* ignore */ }
+        return null;
+    }
+
+    function storageGet(key) {
+        try {
+            var store = storage();
+            return store ? store.getItem(key) : null;
+        } catch (e) { return null; }
+    }
+
+    function storageSet(key, value) {
+        try {
+            var store = storage();
+            if (store) store.setItem(key, value);
+        } catch (e) { /* ignore */ }
+    }
+
+    function storageRemove(key) {
+        try {
+            var store = storage();
+            if (store) store.removeItem(key);
+        } catch (e) { /* ignore */ }
+    }
+
     function storedClientId() {
-        var id = null;
-        try { id = localStorage.getItem(LS_CLIENT); } catch (e) { /* ignore */ }
+        var id = storageGet(LS_CLIENT);
         if (!id || id.length < 8) {
             id = 'gf-' + Math.random().toString(36).slice(2, 10) +
                  Math.random().toString(36).slice(2, 10);
-            try { localStorage.setItem(LS_CLIENT, id); } catch (e) { /* ignore */ }
+            storageSet(LS_CLIENT, id);
         }
         return id;
     }
 
     function storeRoom(room) {
-        try { localStorage.setItem(LS_ROOM, JSON.stringify(room)); } catch (e) { /* ignore */ }
+        storageSet(LS_ROOM, JSON.stringify(room));
     }
 
     function clearRoom() {
-        try { localStorage.removeItem(LS_ROOM); } catch (e) { /* ignore */ }
+        storageRemove(LS_ROOM);
     }
 
     function loadRoom() {
         try {
-            var raw = localStorage.getItem(LS_ROOM);
+            var raw = storageGet(LS_ROOM);
             return raw ? JSON.parse(raw) : null;
         } catch (e) { return null; }
     }
