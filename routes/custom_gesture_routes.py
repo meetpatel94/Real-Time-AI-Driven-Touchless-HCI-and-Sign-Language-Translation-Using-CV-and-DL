@@ -121,8 +121,6 @@ def toggle_custom_gesture(gesture_id):
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>", methods=["DELETE"])
 def delete_custom_gesture(gesture_id):
     try:
-        # Force route ids through the same sanitizer used by folders so path
-        # traversal attempts never reach shutil.rmtree.
         sanitize_gesture_name(gesture_id)
         result = custom_gesture_service.delete_gesture(gesture_id)
     except ValueError as exc:
@@ -132,7 +130,6 @@ def delete_custom_gesture(gesture_id):
 
 # ----------------------------------------------------------------------
 # Self-learning (unknown discovery, mistake memory, gesture evolution).
-# All endpoints are scoped to the Custom Gestures workspace only.
 # ----------------------------------------------------------------------
 @custom_gesture_bp.route("/api/custom-gestures/learning/status", methods=["GET"])
 def custom_gesture_learning_status():
@@ -205,3 +202,78 @@ def ignore_custom_gesture_variations(gesture_id):
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
     return _json_result(result)
+
+
+# ----------------------------------------------------------------------
+# Feature 1: Gesture DNA
+# ----------------------------------------------------------------------
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/dna", methods=["GET"])
+def custom_gesture_dna(gesture_id):
+    try:
+        result = custom_gesture_service.gesture_dna(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/dna/compare", methods=["GET"])
+def custom_gesture_dna_compare(gesture_id):
+    try:
+        result = custom_gesture_service.current_dna_and_comparison(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+# ----------------------------------------------------------------------
+# Feature 2: AI Gesture Coach
+# ----------------------------------------------------------------------
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/coach", methods=["GET"])
+def custom_gesture_coach(gesture_id):
+    try:
+        result = custom_gesture_service.coach_feedback(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/capture/coach", methods=["GET"])
+def custom_gesture_capture_coach():
+    return jsonify(custom_gesture_service.capture_coach_feedback())
+
+
+# ----------------------------------------------------------------------
+# Feature 3: Gesture Quality & Analytics
+# ----------------------------------------------------------------------
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/analytics", methods=["GET"])
+def custom_gesture_analytics(gesture_id):
+    try:
+        result = custom_gesture_service.gesture_analytics(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/details", methods=["GET"])
+def custom_gesture_full_details(gesture_id):
+    """Combined DNA + Coach + Analytics endpoint for the gesture details UI."""
+    try:
+        result = custom_gesture_service.gesture_full_details(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)

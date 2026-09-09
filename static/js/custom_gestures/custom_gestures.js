@@ -157,6 +157,7 @@ class CustomGestureManager {
                 </div>
                 ${variations ? `<div class="custom-evolution-note">${variations} personalized variation${variations > 1 ? 's' : ''} learned</div>` : ''}
                 <div class="custom-card-actions">
+                    <button type="button" data-action="details">Details</button>
                     <button type="button" data-action="toggle" class="${gesture.enabled ? '' : 'success'}">${gesture.enabled ? 'Disable' : 'Enable'}</button>
                     <button type="button" data-action="test" ${testDisabled}>Test</button>
                     <button type="button" data-action="evolution">Evolution</button>
@@ -218,6 +219,7 @@ class CustomGestureManager {
                 const action = button.dataset.action;
                 if (action === 'toggle') this.toggleGesture(gesture);
                 if (action === 'test') this.startTest(gesture);
+                if (action === 'details') this.openDetailsModal(gesture);
                 if (action === 'edit') {
                     this.editingGestureId = gesture.gesture_id;
                     this.renderGestureList();
@@ -638,6 +640,275 @@ class CustomGestureManager {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Feature 1-3: Gesture Details (DNA + Coach + Analytics)
+    // ------------------------------------------------------------------
+    async openDetailsModal(gesture) {
+        try {
+            const data = await this.request(`/api/custom-gestures/${encodeURIComponent(gesture.gesture_id)}/details`);
+            this.renderDetailsModal(data, gesture);
+        } catch (err) {
+            this.notify(err.message, 'error');
+        }
+    }
+
+    renderDetailsModal(data, gesture) {
+        const dna = data.dna || {};
+        const analytics = data.analytics || {};
+        const coach = data.coach || {};
+        const dnaComp = data.dna_comparison || {};
+        const gestureRecord = data.gesture || gesture;
+
+        const dnaHtml = this.renderDnaSection(dna, dnaComp);
+        const coachHtml = this.renderCoachSection(coach);
+        const analyticsHtml = this.renderAnalyticsSection(analytics);
+        const evolutionHtml = this.renderEvolutionSection(analytics);
+        const qualityHtml = this.renderQualitySection(analytics, gestureRecord);
+
+        const lowQualityHtml = analytics.low_quality_warning ? `
+            <div class="low-quality-warning">
+                <div class="low-quality-title">⚠ Gesture quality is low</div>
+                <div class="low-quality-reasons">
+                    ${(analytics.low_quality_reasons || []).map(r => this.escape(r)).join('<br>')}
+                </div>
+                <div class="low-quality-action">
+                    <button type="button" id="btn-improve-gesture" data-gesture-id="${this.attr(gesture.gesture_id)}">Improve Gesture</button>
+                </div>
+            </div>
+        ` : '';
+
+        this.renderModal(`${gesture.gesture_name || gesture.gesture_id} — Details`, `
+            <div class="details-section">
+                <h4 class="details-section-title">Basic Information</h4>
+                <div class="analytics-grid">
+                    <div class="analytics-metric">
+                        <span class="analytics-metric-value">${gestureRecord.sample_count || 0}</span>
+                        <span class="analytics-metric-label">Samples</span>
+                    </div>
+                    <div class="analytics-metric">
+                        <span class="analytics-metric-value">${this.escape(gestureRecord.status || '—')}</span>
+                        <span class="analytics-metric-label">Status</span>
+                    </div>
+                    <div class="analytics-metric">
+                        <span class="analytics-metric-value">${this.formatHand(gestureRecord.hand)}</span>
+                        <span class="analytics-metric-label">Hand</span>
+                    </div>
+                    <div class="analytics-metric">
+                        <span class="analytics-metric-value">${Number((gestureRecord.similarity_threshold || 0.85) * 100).toFixed(0)}%</span>
+                        <span class="analytics-metric-label">Threshold</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <h4 class="details-section-title">Gesture DNA</h4>
+                ${dnaHtml}
+            </div>
+
+            ${dnaComp.similarity != null ? `
+            <div class="details-section">
+                <h4 class="details-section-title">DNA Comparison (Current vs Stored)</h4>
+                <div class="dna-overall">
+                    <span class="dna-overall-label">Overall Similarity</span>
+                    <span class="dna-overall-value">${Number(dnaComp.similarity || 0).toFixed(1)}%</span>
+                    <span class="dna-match-level ${(dnaComp.match_level || '').toLowerCase().replace(' ', '-')}">${this.escape(dnaComp.match_level || '—')}</span>
+                </div>
+            </div>
+            ` : ''}
+
+            <div class="details-section">
+                <h4 class="details-section-title">AI Coach</h4>
+                ${coachHtml}
+            </div>
+
+            ${lowQualityHtml}
+
+            <div class="details-section">
+                <h4 class="details-section-title">Performance</h4>
+                ${qualityHtml}
+            </div>
+
+            <div class="details-section">
+                <h4 class="details-section-title">Analytics</h4>
+                ${analyticsHtml}
+            </div>
+
+            <div class="details-section">
+                <h4 class="details-section-title">Evolution Over Time</h4>
+                ${evolutionHtml}
+            </div>
+        `);
+
+        // Bind "Improve Gesture" button
+        const improveBtn = document.getElementById('btn-improve-gesture');
+        if (improveBtn) {
+            improveBtn.addEventListener('click', () => {
+                this.closeModal();
+                this.showCreatePanel(true);
+                const nameInput = document.getElementById('gesture-name');
+                if (nameInput) nameInput.value = gesture.gesture_name || gesture.gesture_id;
+            });
+        }
+    }
+
+    renderDnaSection(dna, dnaComp) {
+        if (!dna || !dna.sample_count) {
+            return '<div class="custom-empty-state">No DNA data available yet. Capture samples to generate the DNA profile.</div>';
+        }
+        const rows = [
+            { label: 'Hand Shape', value: dna.hand_shape || 0 },
+            { label: 'Finger Extension', value: dna.finger_extension || 0 },
+            { label: 'Palm Orientation', value: dna.palm_orientation || 0 },
+            { label: 'Finger Spread', value: dna.finger_spread || 0 },
+            { label: 'Stability', value: dna.stability || 0 },
+            { label: 'Spatial Consistency', value: dna.spatial_consistency || 0 },
+        ];
+        return `
+            <div class="dna-profile">
+                ${rows.map(r => `
+                    <div class="dna-row">
+                        <span class="dna-label">${r.label}</span>
+                        <div class="dna-bar-track">
+                            <div class="dna-bar-fill ${this.dnaBarClass(r.value)}" style="width: ${Math.min(100, r.value)}%"></div>
+                        </div>
+                        <span class="dna-bar-value">${r.value.toFixed(1)}%</span>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="margin-top: 0.4rem; font-size: 0.75rem; color: var(--text-muted);">
+                Based on ${dna.sample_count} stored sample(s).
+            </div>
+        `;
+    }
+
+    renderCoachSection(coach) {
+        if (!coach || (!coach.feedback && !coach.tips && !coach.sample_quality && !coach.guidance)) {
+            return '<div class="custom-empty-state">Start a test or live recognition to receive coach feedback.</div>';
+        }
+        const feedback = coach.feedback || '';
+        const tips = coach.tips || coach.guidance || [];
+        const quality = coach.sample_quality;
+
+        let qualityHtml = '';
+        if (quality != null) {
+            const cls = quality < 60 ? 'low' : '';
+            qualityHtml = `
+                <div class="coach-quality ${cls}">
+                    <span class="coach-quality-label">Sample Quality</span>
+                    <span class="coach-quality-value">${Number(quality).toFixed(1)}%</span>
+                </div>
+            `;
+        }
+
+        const tipsHtml = tips.length ? `
+            <ul class="coach-tips">
+                ${tips.map(t => `<li>${this.escape(t)}</li>`).join('')}
+            </ul>
+        ` : '';
+
+        return `
+            <div class="coach-box">
+                <div class="coach-header">
+                    <span class="coach-icon">🎯</span>
+                    <span class="coach-title">AI Gesture Coach</span>
+                </div>
+                ${qualityHtml}
+                ${feedback ? `<div class="coach-feedback">${this.escape(feedback)}</div>` : ''}
+                ${tipsHtml}
+            </div>
+        `;
+    }
+
+    renderAnalyticsSection(analytics) {
+        if (!analytics || !analytics.recognition_count) {
+            return '<div class="custom-empty-state">No recognition events recorded yet. Use the gesture in live or test mode to build analytics.</div>';
+        }
+        const successClass = analytics.recognition_success_rate >= 80 ? 'good' : (analytics.recognition_success_rate >= 60 ? 'warn' : 'bad');
+        const confClass = analytics.avg_confidence >= 80 ? 'good' : (analytics.avg_confidence >= 60 ? 'warn' : 'bad');
+        const simClass = analytics.avg_similarity >= 80 ? 'good' : (analytics.avg_similarity >= 60 ? 'warn' : 'bad');
+
+        return `
+            <div class="analytics-grid">
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value ${successClass}">${Number(analytics.recognition_success_rate || 0).toFixed(1)}%</span>
+                    <span class="analytics-metric-label">Success Rate</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value ${confClass}">${Number(analytics.avg_confidence || 0).toFixed(1)}%</span>
+                    <span class="analytics-metric-label">Avg Confidence</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value ${simClass}">${Number(analytics.avg_similarity || 0).toFixed(1)}%</span>
+                    <span class="analytics-metric-label">Avg Similarity</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value">${analytics.recognition_count || 0}</span>
+                    <span class="analytics-metric-label">Total Events</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value good">${analytics.successful_count || 0}</span>
+                    <span class="analytics-metric-label">Successful</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value bad">${analytics.unknown_count || 0}</span>
+                    <span class="analytics-metric-label">Unknown</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value">${analytics.corrections_caused || 0}</span>
+                    <span class="analytics-metric-label">Corrections</span>
+                </div>
+                <div class="analytics-metric">
+                    <span class="analytics-metric-value">${analytics.variation_count || 0}</span>
+                    <span class="analytics-metric-label">Variations</span>
+                </div>
+            </div>
+        `;
+    }
+
+    renderQualitySection(analytics, gesture) {
+        if (!analytics) return '';
+        const qs = analytics.quality_score || 0;
+        const cls = qs >= 80 ? 'good' : (qs >= 60 ? 'warn' : 'bad');
+        return `
+            <div class="quality-score-box">
+                <div>
+                    <span class="quality-score-label">Overall Quality Score</span>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
+                        Based on recognition success, confidence, similarity, stability, and sample diversity.
+                    </div>
+                </div>
+                <span class="quality-score-value ${cls}">${Number(qs).toFixed(1)}%</span>
+            </div>
+        `;
+    }
+
+    renderEvolutionSection(analytics) {
+        const timeline = (analytics && analytics.evolution_timeline) || [];
+        if (!timeline.length) {
+            return '<div class="custom-empty-state">No timeline data yet. Recognition performance will be tracked over time.</div>';
+        }
+        return `
+            <div class="evolution-timeline">
+                ${timeline.map(entry => `
+                    <div class="evolution-row">
+                        <span class="evolution-date">${this.escape(entry.date || '')}</span>
+                        <div class="evolution-bar-track">
+                            <div class="evolution-bar-fill" style="width: ${Math.min(100, entry.success_rate || 0)}%"></div>
+                        </div>
+                        <span class="evolution-value">${Number(entry.success_rate || 0).toFixed(1)}%</span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">(${entry.event_count || 0})</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    dnaBarClass(value) {
+        if (value >= 75) return 'high';
+        if (value >= 45) return 'medium';
+        return 'low';
+    }
+
     renderModal(title, bodyHtml) {
         const overlay = document.getElementById('custom-modal-overlay');
         const titleEl = document.getElementById('custom-modal-title');
@@ -745,6 +1016,122 @@ class CustomGestureManager {
         }
 
         this.renderHistory(runtime.recent_predictions || []);
+        this.updateCoachInUI(runtime);
+        this.updateCaptureCoach(runtime);
+    }
+
+    updateCoachInUI(runtime) {
+        // Show inline coach feedback in the live/test result card
+        const mode = runtime.mode || 'idle';
+        if (mode !== 'test' && mode !== 'live') {
+            this.hideCoachResult();
+            return;
+        }
+        // Coach feedback is fetched asynchronously (not every frame)
+        if (this._coachFetchTimer) return;
+        const expectedId = runtime.expected_gesture_id || runtime.detected_gesture_id;
+        if (!expectedId) {
+            this.hideCoachResult();
+            return;
+        }
+        // Only fetch every 3 seconds to avoid hammering the server
+        if (this._lastCoachFetchTime && (Date.now() - this._lastCoachFetchTime) < 3000) return;
+        this._lastCoachFetchTime = Date.now();
+        this._coachFetchTimer = setTimeout(() => { this._coachFetchTimer = null; }, 200);
+
+        this.request(`/api/custom-gestures/${encodeURIComponent(expectedId)}/coach`)
+            .then(data => {
+                const coach = data.coach || {};
+                this.showCoachResult(coach, mode);
+            })
+            .catch(() => { /* silent */ });
+    }
+
+    showCoachResult(coach, mode) {
+        let container = document.getElementById('coach-result-inline');
+        if (!container) {
+            const resultCard = document.querySelector('.custom-test-card .custom-live-result');
+            if (!resultCard) return;
+            container = document.createElement('div');
+            container.id = 'coach-result-inline';
+            container.className = 'coach-result-box';
+            resultCard.appendChild(container);
+        }
+        const feedback = coach.feedback || '';
+        const tips = coach.tips || [];
+        const sim = coach.similarity;
+        const matchLevel = coach.match_level;
+
+        let html = '';
+        if (feedback) {
+            html += `<div class="coach-result-text">🎯 ${this.escape(feedback)}</div>`;
+        }
+        if (sim != null) {
+            html += `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">DNA similarity: <strong style="color: var(--accent-blue);">${Number(sim).toFixed(1)}%</strong> (${this.escape(matchLevel || '—')})</div>`;
+        }
+        if (tips.length) {
+            html += `<div class="coach-result-tips">${tips.map(t => '→ ' + this.escape(t)).join('<br>')}</div>`;
+        }
+        container.innerHTML = html || '<div class="coach-result-text" style="color: var(--text-muted);">Show the gesture for coach feedback.</div>';
+    }
+
+    hideCoachResult() {
+        const container = document.getElementById('coach-result-inline');
+        if (container) container.innerHTML = '';
+    }
+
+    updateCaptureCoach(runtime) {
+        // Show coach feedback during capture
+        const mode = runtime.mode || 'idle';
+        if (mode !== 'capture') {
+            this.hideCaptureCoach();
+            return;
+        }
+        if (this._captureCoachTimer) return;
+        if (this._lastCaptureCoachTime && (Date.now() - this._lastCaptureCoachTime) < 3000) return;
+        this._lastCaptureCoachTime = Date.now();
+        this._captureCoachTimer = setTimeout(() => { this._captureCoachTimer = null; }, 200);
+
+        this.request('/api/custom-gestures/capture/coach')
+            .then(data => {
+                const coach = data.coach || {};
+                this.showCaptureCoach(coach);
+            })
+            .catch(() => { /* silent */ });
+    }
+
+    showCaptureCoach(coach) {
+        let container = document.getElementById('capture-coach-inline');
+        if (!container) {
+            const progressCard = document.querySelector('.custom-progress-card');
+            if (!progressCard) return;
+            container = document.createElement('div');
+            container.id = 'capture-coach-inline';
+            container.className = 'coach-box';
+            container.style.marginTop = '0.6rem';
+            progressCard.appendChild(container);
+        }
+        const quality = coach.sample_quality;
+        const issues = coach.issues || [];
+        const guidance = coach.guidance || [];
+        const qualityClass = (quality || 0) < 60 ? 'low' : '';
+
+        let html = '<div class="coach-header"><span class="coach-icon">🎯</span><span class="coach-title">Capture Coach</span></div>';
+        if (quality != null) {
+            html += `<div class="coach-quality ${qualityClass}"><span class="coach-quality-label">Sample Quality</span><span class="coach-quality-value">${Number(quality).toFixed(1)}%</span></div>`;
+        }
+        if (issues.length) {
+            html += `<ul class="coach-tips">${issues.map(i => `<li>${this.escape(i)}</li>`).join('')}</ul>`;
+        }
+        if (guidance.length) {
+            html += `<div class="coach-feedback">${this.escape(guidance[0])}</div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    hideCaptureCoach() {
+        const container = document.getElementById('capture-coach-inline');
+        if (container) container.innerHTML = '';
     }
 
     renderHistory(history) {
