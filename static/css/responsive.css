@@ -1,0 +1,958 @@
+/*
+ * GestureForge responsive layer
+ *
+ * This stylesheet is intentionally loaded after the module stylesheets. It
+ * changes layout at the shell boundary only; recognition, camera and room
+ * behaviour remain owned by their existing JavaScript and page styles.
+ */
+
+/* Safe defaults for every viewport. These rules prevent a child component
+   from making the application wider than the available content column. */
+html,
+body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+body {
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+#app-container,
+#main-wrapper,
+#content-area {
+    min-width: 0;
+    max-width: 100%;
+}
+
+#app-container {
+    width: 100%;
+    max-width: 100vw;
+}
+
+#content-area {
+    overflow-x: hidden;
+}
+
+#content-area > *,
+.card,
+.stat-card,
+.feed-container,
+[class*="-grid"],
+[class*="-layout"] {
+    min-width: 0;
+    max-width: 100%;
+}
+
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+    max-width: 100%;
+}
+
+button,
+select,
+input,
+textarea {
+    font: inherit;
+}
+
+/* Keep long labels, room codes and user-created gesture names inside cards. */
+.card,
+.card * {
+    overflow-wrap: break-word;
+}
+
+/* Horizontal scrolling belongs to the table, never to the whole page. */
+.table-responsive,
+.table-container,
+.data-table-container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table,
+.table-container table,
+.data-table-container table {
+    min-width: 560px;
+    width: 100%;
+}
+
+/* The shell header gets a real title area so the mobile menu can sit next to
+   the title without overlapping status indicators. */
+.header-title-area {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+}
+
+.header-title-area h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.mobile-nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    cursor: pointer;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.mobile-nav-toggle:hover,
+.mobile-nav-toggle:focus-visible {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.header-status {
+    min-width: 0;
+}
+
+/* Tablet: preserve the desktop sidebar behaviour, but use the existing icon
+   rail so the content area remains useful at 768–1024px. */
+@media (max-width: 1024px) and (min-width: 768px) {
+    #sidebar {
+        width: var(--sidebar-collapsed-width);
+        padding: 1rem 0.5rem;
+    }
+
+    #sidebar .brand-header {
+        justify-content: center;
+        padding: 0;
+    }
+
+    #sidebar .brand-title,
+    #sidebar .nav-label,
+    #sidebar .control-label,
+    #sidebar .sensitivity-header,
+    #sidebar .slider-sensitivity,
+    #sidebar .select-scroll-level {
+        display: none;
+    }
+
+    #sidebar .nav-item a {
+        justify-content: center;
+        padding: 0.65rem 0;
+    }
+
+    #sidebar .btn-toggle {
+        min-height: 44px;
+        padding: 0.55rem 0;
+    }
+
+    #sidebar .btn-toggle-text {
+        display: none;
+    }
+
+    #sidebar .btn-toggle-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+    }
+
+    #header {
+        padding: 0.55rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.45rem 0.75rem;
+    }
+
+    .header-title-area {
+        flex: 1 1 240px;
+    }
+
+    .header-status {
+        display: flex !important;
+        flex: 1 1 100%;
+        justify-content: flex-start !important;
+        gap: 0.4rem !important;
+        flex-wrap: wrap;
+    }
+
+    #content-area {
+        padding: 1rem;
+    }
+
+    /* At 1024px there is enough room for the main desktop splits. At a
+       narrower tablet they stack in the next breakpoint below. */
+    .feed-container img,
+    .camera-placeholder-box img,
+    .connect-local-video {
+        object-fit: contain;
+    }
+}
+
+/* Phone navigation is a drawer, not a permanently occupied column. */
+@media (max-width: 767px) {
+    body {
+        height: 100dvh;
+    }
+
+    #app-container {
+        display: block;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    #sidebar {
+        position: fixed;
+        z-index: 1000;
+        inset: 0 auto 0 0;
+        width: min(286px, 86vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        padding: 0.9rem 0.75rem;
+        overflow-x: hidden;
+        overflow-y: auto;
+        transform: translateX(-105%);
+        transition: transform 0.24s ease;
+        box-shadow: 14px 0 34px rgba(0, 0, 0, 0.38);
+    }
+
+    #sidebar.collapsed {
+        width: min(286px, 86vw);
+        padding: 0.9rem 0.75rem;
+    }
+
+    #sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    #sidebar .brand-header,
+    #sidebar.collapsed .brand-header {
+        justify-content: flex-start;
+        padding: 0 0.4rem;
+        margin-bottom: 1.1rem;
+    }
+
+    #sidebar .brand-title,
+    #sidebar.collapsed .brand-title {
+        display: block;
+        opacity: 1;
+        font-size: 1.05rem;
+    }
+
+    #sidebar .nav-list {
+        gap: 0.25rem;
+    }
+
+    /* Hide.css intentionally removes a few shell links on desktop. The
+       mobile drawer is the complete navigation, so all existing routes are
+       available here. */
+    #sidebar .nav-list > .nav-item,
+    #sidebar.collapsed .nav-list > .nav-item {
+        display: list-item !important;
+    }
+
+    #sidebar .nav-item a,
+    #sidebar.collapsed .nav-item a {
+        justify-content: flex-start;
+        min-height: 44px;
+        padding: 0.65rem 0.8rem;
+    }
+
+    #sidebar .nav-label,
+    #sidebar.collapsed .nav-label {
+        display: inline-block;
+        opacity: 1;
+        font-size: 0.9rem;
+    }
+
+    #sidebar .sidebar-controls,
+    #sidebar.collapsed .sidebar-controls {
+        gap: 0.7rem;
+    }
+
+    #sidebar .control-label,
+    #sidebar.collapsed .control-label {
+        display: block;
+    }
+
+    #sidebar .sensitivity-header,
+    #sidebar.collapsed .sensitivity-header,
+    #sidebar .slider-sensitivity,
+    #sidebar.collapsed .slider-sensitivity,
+    #sidebar .select-scroll-level,
+    #sidebar.collapsed .select-scroll-level {
+        display: flex;
+    }
+
+    #sidebar .slider-sensitivity {
+        width: 100%;
+        min-height: 20px;
+    }
+
+    #sidebar .select-scroll-level {
+        min-height: 44px;
+    }
+
+    #sidebar .btn-toggle,
+    #sidebar.collapsed .btn-toggle {
+        min-height: 44px;
+        padding: 0.55rem 0.75rem;
+    }
+
+    #sidebar .btn-toggle-text,
+    #sidebar.collapsed .btn-toggle-text {
+        display: inline-block;
+    }
+
+    #sidebar .btn-toggle-icon,
+    #sidebar.collapsed .btn-toggle-icon {
+        display: none;
+    }
+
+    #main-wrapper {
+        width: 100%;
+        height: 100dvh;
+    }
+
+    #header {
+        position: relative;
+        z-index: 20;
+        height: auto;
+        min-height: var(--header-height);
+        padding: 0.65rem 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.55rem 0.7rem;
+    }
+
+    .mobile-nav-toggle {
+        display: inline-flex;
+    }
+
+    .header-title-area {
+        flex: 1 1 100%;
+        gap: 0.55rem;
+    }
+
+    .header-title-area h2 {
+        flex: 1;
+        font-size: clamp(1rem, 4.6vw, 1.2rem);
+        line-height: 1.25;
+    }
+
+    .header-status {
+        display: flex !important;
+        flex: 1 1 100%;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .header-status .badge {
+        white-space: nowrap;
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+    }
+
+    /* Keep the primary live state readable; secondary adaptive telemetry is
+       available in its panel and is omitted here to avoid header crowding. */
+    #dwell-container,
+    #status-interaction,
+    #status-adaptive,
+    #status-intent,
+    #status-unknown,
+    #adaptive-profile-trigger {
+        display: none !important;
+    }
+
+    #mobile-nav-scrim {
+        display: none;
+        position: fixed;
+        z-index: 900;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.64);
+    }
+
+    body.mobile-nav-open #mobile-nav-scrim {
+        display: block;
+    }
+
+    #content-area {
+        padding: 0.75rem;
+        overflow-x: hidden;
+    }
+
+    .card {
+        padding: 0.9rem;
+        border-radius: 9px;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    /* Touch-friendly controls without turning every inline action into a
+       full-width button. */
+    button,
+    input,
+    select,
+    textarea {
+        min-height: 44px;
+    }
+
+    input,
+    select,
+    textarea {
+        width: 100%;
+        min-width: 0;
+    }
+
+    textarea {
+        max-width: 100%;
+    }
+
+    .feed-container {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 4 / 3;
+    }
+
+    .btn-letter,
+    .btn-pick-letter {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+    }
+
+    .canvas-wrapper {
+        width: 100%;
+        max-width: 100%;
+        height: min(500px, 60vh);
+    }
+
+    .feed-container img,
+    .camera-placeholder-box img,
+    .connect-local-video {
+        object-fit: contain;
+    }
+
+    /* Camera and dashboard splits become one comfortable column on phones. */
+    .dashboard-grid,
+    .alphabet-layout,
+    .recognition-layout,
+    .dashboard-split,
+    .studio-main-row,
+    .custom-main-layout,
+    .connect-grid,
+    .translation-box,
+    .mouse-dashboard {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-grid,
+    .alphabet-layout,
+    .recognition-layout {
+        gap: 1rem;
+    }
+
+    /* Inline flex wrappers in the older collector/recognition templates must
+       be allowed to wrap instead of forcing a horizontal page scroll. */
+    .alphabet-layout > div,
+    .recognition-layout > div,
+    .sign-alphabet-container .dashboard-split > div {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .alphabet-layout .card > div:first-child,
+    .recognition-layout .card > div:first-child,
+    .sign-alphabet-container .card > div:first-child,
+    .sign-alphabet-container .card > div[style*="margin-top: 1.5rem"] {
+        flex-wrap: wrap;
+        gap: 0.55rem;
+    }
+
+    .recognition-layout .card > div[style*="margin-top: 1.2rem"],
+    .sign-alphabet-container .card > div[style*="margin-top: 1.5rem"] {
+        flex-wrap: wrap;
+    }
+
+    .status-pill-strip,
+    .custom-status-strip {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        justify-content: initial;
+        padding: 0.65rem 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    .status-pill-strip > div,
+    .custom-status-strip > div {
+        min-width: 0;
+    }
+
+    .status-pill-strip strong,
+    .custom-status-strip strong {
+        overflow-wrap: anywhere;
+    }
+
+    .test-comparison-box {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .compare-divider {
+        display: none;
+    }
+
+    .hero-prediction {
+        font-size: clamp(3.5rem, 20vw, 5.5rem);
+    }
+
+    .test-stats-grid,
+    .progress-metrics-grid,
+    .training-specs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .training-specs-grid .spec-item {
+        min-width: 0;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    .classes-grid,
+    .summary-matrix {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding-right: 0;
+    }
+
+    .collector-controls {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.6rem;
+    }
+
+    .collector-controls > div:last-child {
+        margin-left: 0 !important;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .collector-controls .btn-action,
+    .custom-form-actions .btn-toggle {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .stats-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .progress-metrics-grid {
+        gap: 0.45rem;
+    }
+
+    .metric-box,
+    .test-stat-card {
+        min-width: 0;
+        padding: 0.6rem 0.4rem;
+    }
+
+    .stat-value {
+        font-size: 1.35rem;
+        overflow-wrap: anywhere;
+    }
+
+    .classes-grid {
+        max-height: none;
+    }
+
+    .summary-matrix {
+        max-height: 360px;
+    }
+
+    /* Studio camera, overlays and controls. */
+    .compact-camera-wrapper {
+        width: 100%;
+        max-height: none;
+        aspect-ratio: 4 / 3;
+    }
+
+    .camera-sign-overlay {
+        width: min(118px, 38%);
+        right: 0.4rem;
+        top: 0.4rem;
+        padding: 0.45rem 0.5rem;
+    }
+
+    .overlay-sign-char {
+        font-size: 2.2rem;
+    }
+
+    .translation-actions-wrap,
+    .translation-top-controls,
+    .translation-footer-compact {
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .translation-top-controls,
+    .translation-actions-wrap {
+        flex-direction: column;
+    }
+
+    .translation-actions-wrap .form-select-sm {
+        min-height: 44px;
+        width: 100%;
+    }
+
+    .translation-footer-compact {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .quick-links {
+        flex-wrap: wrap;
+        gap: 0.9rem;
+    }
+
+    .sentence-counts,
+    .btn-group-compact {
+        flex-wrap: wrap;
+    }
+
+    .btn-group-compact {
+        width: 100%;
+    }
+
+    .btn-group-compact .btn-action-xs {
+        flex: 1;
+    }
+
+    .sentence-compact-textarea {
+        min-height: 110px;
+        height: 110px;
+    }
+
+    /* Custom Gestures already has module breakpoints; these rules make the
+       remaining status rows, cards and actions safe at phone widths. */
+    .custom-gesture-hero,
+    .custom-section-heading,
+    .custom-camera-header,
+    .custom-hero-actions,
+    .custom-form-actions,
+    .custom-candidate-actions,
+    .custom-correction-prompt {
+        align-items: stretch;
+    }
+
+    .custom-gesture-hero,
+    .custom-section-heading,
+    .custom-camera-header,
+    .custom-hero-actions,
+    .custom-form-actions {
+        flex-direction: column;
+    }
+
+    .custom-hero-actions,
+    .custom-form-actions {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .custom-primary-btn,
+    .custom-secondary-btn,
+    .custom-refresh-btn,
+    .custom-form-actions .btn-toggle {
+        width: 100%;
+    }
+
+    .custom-candidates-note {
+        max-width: none;
+        text-align: left;
+    }
+
+    .custom-gesture-grid,
+    .custom-candidate-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .custom-card-meta,
+    .custom-card-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .custom-card-actions button {
+        min-height: 44px;
+    }
+
+    .custom-modal-overlay,
+    .connect-modal-overlay {
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0.65rem;
+        overflow-y: auto;
+    }
+
+    .custom-modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100dvh - 1.3rem);
+        overflow-y: auto;
+    }
+
+    .custom-modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel-bg);
+    }
+
+    .custom-modal-body {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .custom-icon-btn,
+    .connect-icon-btn,
+    .adaptive-close-button {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Connect room order is intentionally a vertical conversation flow on
+       phones: You/camera/detection, Other/last gesture, timeline, input. */
+    .connect-page {
+        width: 100%;
+        gap: 0.9rem;
+    }
+
+    .connect-intro-card,
+    .connect-lobby-card,
+    .connect-legend-card,
+    .connect-panel,
+    .connect-timeline-card {
+        width: 100%;
+    }
+
+    .connect-intro-copy h3 {
+        font-size: 1.1rem;
+    }
+
+    .connect-lobby-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.8rem;
+    }
+
+    .connect-lobby-or {
+        margin: -0.15rem 0;
+    }
+
+    .connect-room-bar {
+        align-items: stretch;
+        padding: 0.8rem 0.9rem;
+    }
+
+    .connect-room-bar-right,
+    .connect-room-bar-left {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .connect-room-bar-right {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .connect-room-hint {
+        margin-right: 0;
+    }
+
+    .connect-room-bar-right .connect-danger-btn {
+        width: 100%;
+    }
+
+    .connect-feed {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+    }
+
+    .connect-feed-overlay {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .connect-detection-main,
+    .connect-other-main {
+        align-items: flex-start;
+    }
+
+    .connect-detection-main {
+        gap: 0.65rem;
+    }
+
+    .connect-detection-symbol {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+    }
+
+    .connect-detection-state {
+        font-size: 0.82rem;
+    }
+
+    .connect-actions {
+        flex-direction: column;
+    }
+
+    .connect-action-btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .connect-other-symbol {
+        width: 64px;
+        height: 64px;
+        flex: 0 0 64px;
+        font-size: 2.3rem;
+    }
+
+    .connect-other-meaning {
+        font-size: 1.2rem;
+    }
+
+    .connect-chat-form {
+        flex-direction: column;
+    }
+
+    .connect-chat-form .connect-send-btn {
+        width: 100%;
+    }
+
+    .connect-modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100dvh - 1.3rem);
+        overflow-y: auto;
+    }
+
+    #replay-canvas {
+        width: 100%;
+        height: auto;
+    }
+
+    .connect-toast {
+        left: 0.7rem;
+        right: 0.7rem;
+        bottom: 0.7rem;
+        max-width: none;
+    }
+
+    /* Adaptive profile is a large form panel; keep it inside the viewport and
+       let the panel, rather than the page, scroll. */
+    #adaptive-profile-panel {
+        top: 0.65rem;
+        right: 0.5rem;
+        left: 0.5rem;
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - 1.3rem);
+        padding: 0.8rem;
+        overflow-y: auto;
+    }
+
+    .adaptive-panel-actions,
+    .adaptive-calibration-controls,
+    .adaptive-correction-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .adaptive-panel-actions button,
+    .adaptive-calibration-controls button,
+    .adaptive-correction-row button,
+    .adaptive-danger-button {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .adaptive-live-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .adaptive-live-row strong {
+        max-width: 58%;
+        overflow-wrap: anywhere;
+    }
+
+    .adaptive-section-heading .adaptive-help {
+        text-align: left;
+    }
+}
+
+/* Very small phones: reduce only outer spacing, not legibility. */
+@media (max-width: 420px) {
+    #content-area {
+        padding: 0.6rem;
+    }
+
+    .card {
+        padding: 0.75rem;
+    }
+
+    .status-pill-strip,
+    .custom-status-strip {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .test-comparison-box,
+    .test-stats-grid,
+    .progress-metrics-grid,
+    .training-specs-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .letter-selector-wrapper,
+    .letter-picker-strip {
+        gap: 0.3rem;
+    }
+
+    .btn-letter,
+    .btn-pick-letter {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+    }
+
+    .connect-room-code {
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+    }
+}
