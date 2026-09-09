@@ -32,6 +32,16 @@
             </div>
         </div>
 
+        <!-- LAN / two-device help (local testing only) -->
+        <div class="connect-lan-help" role="note">
+            <span class="connect-lan-help-icon" aria-hidden="true">📶</span>
+            <div>
+                <strong>Connect another device</strong>
+                <p>To connect another device, open this same address using your computer's LAN IP while both devices
+                are connected to the same Wi-Fi.</p>
+            </div>
+        </div>
+
         <div class="connect-lobby-grid">
             <!-- CREATE -->
             <div class="card connect-lobby-card">
@@ -50,14 +60,17 @@
                 </div>
             </div>
 
+            <div class="connect-lobby-or" aria-hidden="true"><span>OR</span></div>
+
             <!-- JOIN -->
             <div class="card connect-lobby-card">
                 <div class="connect-lobby-icon">🚪</div>
                 <h3>Join Room</h3>
                 <p>Enter the room code you received to communicate with the creator.</p>
+                <label class="connect-join-label" for="join-room-input">Room Code</label>
                 <div class="connect-join-form">
                     <input id="join-room-input" type="text" maxlength="8" autocomplete="off"
-                           placeholder="GF-XXXX" spellcheck="false">
+                           placeholder="GF-XXXX" spellcheck="false" autocorrect="off" autocapitalize="characters">
                     <button id="btn-join-room" class="btn-toggle connect-primary" type="button">Join Room</button>
                 </div>
                 <p id="join-error" class="connect-error-text" hidden></p>
@@ -81,7 +94,7 @@
                 <span class="connect-eyebrow">Private room</span>
                 <div class="connect-code-row">
                     <span id="room-code-chip" class="connect-room-code">GF-••••</span>
-                    <button id="btn-copy-code-2" class="connect-icon-btn" type="button" title="Copy room code">📋</button>
+                    <button id="btn-copy-code-2" class="connect-secondary-btn" type="button" title="Copy room code">📋 Copy Code</button>
                     <span id="conn-pill" class="badge">🟡 Connecting…</span>
                 </div>
             </div>
