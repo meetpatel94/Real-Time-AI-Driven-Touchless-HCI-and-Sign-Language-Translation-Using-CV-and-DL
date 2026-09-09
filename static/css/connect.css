@@ -1,0 +1,684 @@
+/* ============================================================
+   Connect — Two-person real-time gesture rooms
+   Follows the app design tokens (see base.css / components.css).
+   ============================================================ */
+
+.connect-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+/* Author CSS (display:flex etc.) must never defeat the hidden attribute. */
+.connect-page [hidden] {
+    display: none !important;
+}
+
+/* ---------- shared bits ---------- */
+.connect-eyebrow {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.connect-muted {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.connect-primary {
+    background: var(--accent-blue) !important;
+    color: #04121f !important;
+    border-color: var(--accent-blue) !important;
+    font-weight: 700;
+    width: auto;
+}
+
+.connect-primary:hover {
+    filter: brightness(1.1);
+}
+
+.connect-secondary-btn {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    color: var(--accent-blue);
+    padding: 0.45rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.connect-secondary-btn:hover {
+    background: rgba(56, 189, 248, 0.25);
+}
+
+.connect-danger-btn {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    color: var(--accent-red);
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.connect-danger-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.connect-icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s ease;
+}
+
+.connect-icon-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.connect-code-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.connect-room-code {
+    font-family: 'Courier New', monospace;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--accent-blue);
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px dashed rgba(56, 189, 248, 0.45);
+    padding: 0.3rem 0.75rem;
+    border-radius: 8px;
+}
+
+/* ---------- lobby ---------- */
+.connect-intro-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.connect-intro-copy h3 {
+    font-size: 1.25rem;
+    margin: 0.35rem 0 0.5rem;
+}
+
+.connect-intro-copy p {
+    max-width: 620px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.55;
+}
+
+.connect-privacy-note {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    max-width: 320px;
+}
+
+.connect-privacy-note span { font-size: 1.2rem; }
+
+.connect-privacy-note strong {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--accent-green);
+}
+
+.connect-privacy-note small {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.connect-lobby-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.connect-lobby-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: flex-start;
+}
+
+.connect-lobby-icon {
+    font-size: 1.6rem;
+}
+
+.connect-lobby-card h3 {
+    font-size: 1.1rem;
+}
+
+.connect-lobby-card p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.connect-created-room {
+    width: 100%;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    align-items: flex-start;
+    background: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    margin-top: 0.4rem;
+}
+
+.connect-created-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.connect-join-form {
+    display: flex;
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.connect-join-form input {
+    flex: 1;
+    min-width: 0;
+}
+
+.connect-lobby-card input,
+.connect-chat-form input,
+.connect-chat-form input:focus {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-main);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.connect-lobby-card input:focus,
+.connect-chat-form input:focus {
+    border-color: var(--accent-blue);
+}
+
+#join-room-input {
+    text-transform: uppercase;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+}
+
+.connect-error-text {
+    color: var(--accent-red) !important;
+    font-weight: 600;
+}
+
+.connect-legend-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.connect-legend-card h3 {
+    font-size: 1rem;
+}
+
+.connect-legend-card a {
+    color: var(--accent-blue);
+}
+
+.connect-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.5rem;
+}
+
+.connect-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.78rem;
+    color: var(--text-main);
+}
+
+.connect-chip .chip-symbol { font-size: 0.95rem; }
+
+.connect-chip .chip-kind {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    margin-left: 0.1rem;
+}
+
+/* ---------- room bar ---------- */
+.connect-room-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.9rem 1.25rem;
+}
+
+.connect-room-bar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.connect-room-hint {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-right: 0.8rem;
+}
+
+/* ---------- two panels ---------- */
+.connect-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.connect-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.connect-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.connect-panel-header h3 {
+    font-size: 1.05rem;
+    margin-top: 0.15rem;
+}
+
+.connect-role-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: rgba(148, 163, 184, 0.15);
+    border-radius: 999px;
+    padding: 0.12rem 0.5rem;
+    margin-left: 0.2rem;
+    vertical-align: 2px;
+}
+
+.connect-feed {
+    position: relative;
+    border: 1px solid var(--border-color);
+}
+
+.connect-feed-overlay {
+    position: absolute;
+    top: 0.6rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    gap: 0.4rem;
+    justify-content: space-between;
+    padding: 0 0.6rem;
+    pointer-events: none;
+}
+
+/* detection box (You) */
+.connect-detection-box {
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.connect-detection-main {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.connect-detection-symbol {
+    font-size: 2.2rem;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+.connect-detection-state {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.connect-detected-row {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.connect-detected-row strong {
+    color: var(--accent-green);
+    font-size: 0.95rem;
+}
+
+.connect-progress-track {
+    height: 7px;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.connect-progress-fill {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+    border-radius: 6px;
+    transition: width 0.09s linear;
+}
+
+.connect-hold-hint {
+    margin: 0;
+}
+
+.connect-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.connect-action-btn {
+    width: auto;
+    flex: 1;
+    min-width: 170px;
+}
+
+.connect-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.connect-actions-note { margin: 0; }
+
+/* other panel */
+.connect-waiting {
+    border: 1px dashed var(--border-color);
+    border-radius: 10px;
+    padding: 1.4rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+}
+
+.connect-waiting-icon { font-size: 1.9rem; }
+
+.connect-other-gesture {
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    flex: 1;
+}
+
+.connect-other-main {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.connect-other-symbol {
+    font-size: 3rem;
+    width: 84px;
+    height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    border-radius: 14px;
+}
+
+.connect-other-meaning {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--accent-green);
+}
+
+/* timeline */
+.connect-timeline-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.connect-timeline-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.connect-timeline-head h3 {
+    font-size: 1.05rem;
+    margin-top: 0.15rem;
+}
+
+.connect-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.connect-empty-state {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 0.6rem 0.2rem;
+    text-align: center;
+}
+
+.connect-msg {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-dark);
+    padding: 0.55rem 0.8rem;
+}
+
+.connect-msg.self { border-color: rgba(56, 189, 248, 0.35); }
+
+.connect-msg.other { border-color: rgba(34, 197, 94, 0.3); }
+
+.connect-msg-symbol {
+    font-size: 1.5rem;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.connect-msg-main { min-width: 0; flex: 1; }
+
+.connect-msg-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
+}
+
+.connect-msg-sender { font-weight: 800; color: var(--text-main); font-size: 0.8rem; }
+
+.connect-msg.self .connect-msg-sender { color: var(--accent-blue); }
+.connect-msg.other .connect-msg-sender { color: var(--accent-green); }
+
+.connect-msg-body {
+    font-size: 0.92rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.connect-msg-body .msg-meaning {
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.connect-msg .msg-kind-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-right: 0.35rem;
+}
+
+.connect-msg-replay-btn {
+    margin-top: 0.4rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.72rem;
+}
+
+.connect-msg-time {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.connect-chat-form {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.connect-chat-form input { flex: 1; min-width: 0; }
+
+.connect-send-btn { flex-shrink: 0; }
+
+/* toast + modal */
+.connect-toast {
+    position: fixed;
+    bottom: 1.2rem;
+    right: 1.2rem;
+    max-width: 360px;
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-blue);
+    color: var(--text-main);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    z-index: 300;
+}
+
+.connect-toast.error { border-color: var(--accent-red); }
+.connect-toast.success { border-color: var(--accent-green); }
+
+.connect-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 400;
+}
+
+.connect-modal {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: min(420px, 92vw);
+    padding: 1.1rem 1.2rem;
+}
+
+.connect-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.7rem;
+}
+
+.connect-modal-header h3 { font-size: 1rem; }
+
+.connect-modal-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+#replay-canvas {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: radial-gradient(circle at 30% 25%, #12233d, #0b1526);
+}
+
+/* responsive */
+@media (max-width: 980px) {
+    .connect-grid,
+    .connect-lobby-grid {
+        grid-template-columns: 1fr;
+    }
+}

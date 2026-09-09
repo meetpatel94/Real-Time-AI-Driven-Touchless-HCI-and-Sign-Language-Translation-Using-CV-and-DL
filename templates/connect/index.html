@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Connect — GestureForge AI{% endblock %}
+{% block page_title %}🤝 Connect — Real-Time Gesture Rooms{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/connect.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="connect-page">
+    <!-- ============ LOBBY: create / join ============ -->
+    <section id="lobby-view" class="connect-lobby">
+        <div class="card connect-intro-card">
+            <div class="connect-intro-copy">
+                <span class="connect-eyebrow">Two-person gesture communication</span>
+                <h3>Talk with gestures in a private room</h3>
+                <p>
+                    One person creates a room (e.g. <strong>GF-K82M</strong>), the other joins with that code,
+                    and every recognized gesture is relayed instantly. Gesture recognition runs locally in
+                    this app's existing camera pipeline — only lightweight gesture/text events travel over
+                    WebSocket, never webcam video.
+                </p>
+            </div>
+            <div class="connect-privacy-note">
+                <span>🔒</span>
+                <div>
+                    <strong>Private by design</strong>
+                    <small>Rooms support exactly two participants. No video is uploaded or stored, and
+                    conversations stay in memory for the session only.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="connect-lobby-grid">
+            <!-- CREATE -->
+            <div class="card connect-lobby-card">
+                <div class="connect-lobby-icon">📡</div>
+                <h3>Create Room</h3>
+                <p>Start a private room and receive a short code to share with the other person.</p>
+                <button id="btn-create-room" class="btn-toggle connect-primary" type="button">+ Create Room</button>
+                <div id="created-room-box" class="connect-created-room" hidden>
+                    <span class="connect-created-label">Room Code</span>
+                    <div class="connect-code-row">
+                        <span id="room-code-output" class="connect-room-code">GF-••••</span>
+                        <button id="btn-copy-code" class="connect-secondary-btn" type="button">📋 Copy Code</button>
+                    </div>
+                    <p class="connect-muted">Share this code with the other person. Gesture sending switches on
+                    automatically for you — hold a pose for 2 seconds to send it once.</p>
+                </div>
+            </div>
+
+            <!-- JOIN -->
+            <div class="card connect-lobby-card">
+                <div class="connect-lobby-icon">🚪</div>
+                <h3>Join Room</h3>
+                <p>Enter the room code you received to communicate with the creator.</p>
+                <div class="connect-join-form">
+                    <input id="join-room-input" type="text" maxlength="8" autocomplete="off"
+                           placeholder="GF-XXXX" spellcheck="false">
+                    <button id="btn-join-room" class="btn-toggle connect-primary" type="button">Join Room</button>
+                </div>
+                <p id="join-error" class="connect-error-text" hidden></p>
+                <p class="connect-muted">Codes look like <strong>GF-K82M</strong> and are not case-sensitive.</p>
+            </div>
+        </div>
+
+        <div class="card connect-legend-card">
+            <span class="connect-eyebrow">Gesture dictionary</span>
+            <h3>Recognized gestures</h3>
+            <p class="connect-muted">Saved custom gestures are matched first — teach your own “☝️ → Hii” style mapping in
+            <a href="{{ url_for('custom_gestures.custom_gestures_page') }}">Custom Gestures</a> and it will be used here automatically.</p>
+            <div id="connect-legend-chips" class="connect-chip-row"><!-- JS --></div>
+        </div>
+    </section>
+
+    <!-- ============ ROOM VIEW ============ -->
+    <section id="room-view" class="connect-room" hidden>
+        <div class="card connect-room-bar">
+            <div class="connect-room-bar-left">
+                <span class="connect-eyebrow">Private room</span>
+                <div class="connect-code-row">
+                    <span id="room-code-chip" class="connect-room-code">GF-••••</span>
+                    <button id="btn-copy-code-2" class="connect-icon-btn" type="button" title="Copy room code">📋</button>
+                    <span id="conn-pill" class="badge">🟡 Connecting…</span>
+                </div>
+            </div>
+            <div class="connect-room-bar-right">
+                <span class="connect-room-hint">Share this code with one person · exactly 2 participants</span>
+                <button id="btn-leave-room" class="connect-danger-btn" type="button">✕ Leave Room</button>
+            </div>
+        </div>
+
+        <div class="connect-grid">
+            <!-- ===== YOU ===== -->
+            <div class="card connect-panel">
+                <div class="connect-panel-header">
+                    <div>
+                        <span class="connect-eyebrow">Local camera</span>
+                        <h3>You <span id="you-role-tag" class="connect-role-tag"></span></h3>
+                    </div>
+                    <span id="you-session-badge" class="badge">🟡 Connecting…</span>
+                </div>
+
+                <div class="feed-container connect-feed">
+                    <img id="video-feed-connect" src="{{ url_for('camera.video_feed') }}" alt="Camera Stream">
+                    <div class="connect-feed-overlay">
+                        <span id="you-cam-badge" class="badge badge-danger">CAMERA OFF</span>
+                        <span id="you-send-badge" class="badge">SENDING OFF</span>
+                    </div>
+                </div>
+
+                <div class="connect-detection-box">
+                    <div class="connect-detection-main">
+                        <span class="connect-detection-symbol" id="you-symbol">✋</span>
+                        <div>
+                            <div class="connect-detection-state" id="you-state-text">Waiting for the other user…</div>
+                            <div class="connect-detected-row" id="you-detected-row">
+                                <span>Detected:</span>
+                                <strong id="you-detected-value">—</strong>
+                                <span id="you-conf" class="connect-muted"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="connect-progress-track" id="you-progress-track" hidden>
+                        <span id="you-progress-fill" class="connect-progress-fill" style="width: 0%"></span>
+                    </div>
+                    <p class="connect-muted connect-hold-hint" id="you-hold-hint">Hold a recognized gesture for 2s — it is sent exactly once.</p>
+                </div>
+
+                <div class="connect-actions">
+                    <button id="btn-camera-local" class="btn-toggle connect-action-btn" type="button">📷 Turn Camera ON</button>
+                    <button id="btn-send-toggle" class="btn-toggle connect-action-btn" type="button" disabled>✋ Gesture Sending: OFF</button>
+                </div>
+                <p class="connect-muted connect-actions-note">Gesture recognition uses the app's existing camera pipeline. Only the seat
+                holder's recognized gestures are relayed, so take turns showing gestures.</p>
+            </div>
+
+            <!-- ===== OTHER USER ===== -->
+            <div class="card connect-panel">
+                <div class="connect-panel-header">
+                    <div>
+                        <span class="connect-eyebrow">Remote participant</span>
+                        <h3>Other User <span id="other-name-tag" class="connect-role-tag"></span></h3>
+                    </div>
+                    <span id="other-conn-pill" class="badge badge-danger">🔴 Disconnected</span>
+                </div>
+
+                <div id="other-waiting" class="connect-waiting">
+                    <span class="connect-waiting-icon">👋</span>
+                    <p>Waiting for the other user to join…</p>
+                    <p class="connect-muted" id="other-waiting-tip">Share your room code so they can join.</p>
+                </div>
+
+                <div id="other-gesture-box" class="connect-other-gesture" hidden>
+                    <span class="connect-eyebrow">Last Gesture</span>
+                    <div class="connect-other-main">
+                        <span id="other-symbol" class="connect-other-symbol">—</span>
+                        <div class="connect-other-copy">
+                            <div id="other-meaning" class="connect-other-meaning">—</div>
+                            <div id="other-meta" class="connect-muted">No gesture received yet</div>
+                        </div>
+                    </div>
+                    <button id="btn-replay-gesture" class="connect-secondary-btn" type="button" hidden>▶ Replay Gesture</button>
+                    <div id="other-replay-note" class="connect-muted" hidden></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== COMMUNICATION TIMELINE ===== -->
+        <div class="card connect-timeline-card">
+            <div class="connect-timeline-head">
+                <div>
+                    <span class="connect-eyebrow">Session communication</span>
+                    <h3>Timeline</h3>
+                </div>
+                <span id="timeline-count" class="connect-muted">0 messages</span>
+            </div>
+            <div id="connect-timeline" class="connect-timeline">
+                <div id="timeline-empty" class="connect-empty-state">No messages yet — send a gesture or type a message.</div>
+            </div>
+            <form id="chat-form" class="connect-chat-form" autocomplete="off">
+                <input id="chat-input" type="text" maxlength="600" placeholder="Type a message…" aria-label="Chat message">
+                <button id="btn-chat-send" class="btn-toggle connect-primary connect-send-btn" type="submit">Send</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- replay modal -->
+    <div id="replay-modal-overlay" class="connect-modal-overlay" hidden>
+        <div class="connect-modal" role="dialog" aria-modal="true" aria-labelledby="replay-modal-title">
+            <div class="connect-modal-header">
+                <h3 id="replay-modal-title">Replay Gesture</h3>
+                <button id="btn-close-replay" class="connect-icon-btn" type="button" aria-label="Close">×</button>
+            </div>
+            <div class="connect-modal-body">
+                <canvas id="replay-canvas" width="260" height="200"></canvas>
+                <p id="replay-modal-name" class="connect-muted"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="connect-toast" class="connect-toast" role="status" aria-live="polite" hidden></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/connect/connect.js') }}"></script>
+{% endblock %}

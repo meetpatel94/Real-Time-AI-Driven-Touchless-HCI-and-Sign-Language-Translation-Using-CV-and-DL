@@ -87,6 +87,50 @@ API surface:
 
 The client (`static/js/studio/autocomplete.js`) debounces requests (~180 ms), caches responses, and supports ArrowUp/ArrowDown navigation, Enter or Tab to accept, Escape and outside-click to dismiss. It only binds to the studio sentence input, so A–Z recognition, word prediction, custom gestures, gesture DNA, mistake memory, gesture evolution, air mouse, air drawing and global hand scrolling are untouched. The existing word chips below the suggestions remain the word-level predictor.
 
+### GestureForge Connect (two-person real-time gesture rooms)
+
+A new **Connect** section (sidebar → 🤝 Connect, route `/connect`) lets two people on
+different devices/browsers talk in a private room using the app's existing camera +
+MediaPipe recognition:
+
+`MediaPipe hands (existing engine) → Connect detector (stable + hold-to-send gate) → WebSocket relay → other participant`
+
+* **Rooms** — User A clicks **Create Room** and gets a short code such as `GF-K82M`
+  (share via **Copy Code**); User B enters the code and clicks **Join Room**. A room
+  holds exactly two participants ("Room is full." otherwise), and codes expire after
+  a bounded idle TTL. Room state and history are ephemeral in-memory only.
+* **Two panels** — after joining, a desktop grid shows **You** (camera, detected
+  gesture, hold progress, seat control) and **Other User** (connection status, last
+  gesture, meaning, confidence), plus a shared **timeline** for gestures and text and
+  a text input fallback (`[Type a message…] [Send]`).
+* **Recognition is reused, not duplicated** — Connect consumes the landmark results
+  already produced by `core/gestures/gesture_engine.py`; it never opens a second
+  camera pipeline and it never uploads frames. Only lightweight JSON events
+  (`gesture_id`, meaning/symbol, timestamp, small metadata) travel over WebSocket.
+* **Saved custom gestures win** — matching runs through the existing Custom Gesture
+  library (`match_frame_read_only` read-only matcher), so a trained
+  `☝️ → hii`-style mapping relays exactly like the Custom Gestures page. Built-in
+  defaults exist for untrained poses (☝️ Hii, 👍 Okay, ✌️ Peace, ✊ Stop, …).
+* **Duplicate prevention** — a gesture must be stable for N frames and then held
+  (~2 s) before it is sent **once**; re-sending requires the hand to drop/change and
+  the gesture to be recognized again.
+* **Gesture replay** — received custom gestures show **▶ Replay Gesture**, which
+  animates the mean normalized landmark track of the real saved samples via
+  `GET /api/connect/replay/<gesture_id>` (404 when no sample exists → name/symbol fallback).
+* **Turn taking** — the camera feed seat is exclusive. The other participant's send
+  request is queued and granted automatically when the current sender releases the
+  feed, so both users can gesture in turn.
+* **Isolation** — all Connect processing is gated on `active_module == "connect"` and
+  an active room seat. Opening Overview, Recognition, Translation, Custom Gestures,
+  Studio, Air Drawing etc. never starts Connect rooms, sockets, or gesture sending;
+  leaving `/connect` closes the socket, releases the seat and resets the detector.
+* **Failure handling** — invalid/expired room, room full, session mismatch, seat busy,
+  camera off, and socket drops are reported with clear messages; the client
+  reconnects automatically (`🔄 Reconnecting…`) and resumes the same room/role.
+* **Transport** — the relay uses Flask-Sock on the same Flask dev-server port
+  (`flask-sock==0.7.0` added to `requirements.txt`); no polling is used for
+  communication.
+
 ### MongoDB configuration
 
 Set `MONGODB_URI` and `MONGODB_DATABASE` in the environment (the conventional `MONGO_URI`, `MONGODB_DB_NAME`, `MONGO_DB_NAME`, or `MONGO_DATABASE` aliases are also accepted). Optional bounded timeout settings are `MONGODB_SERVER_SELECTION_TIMEOUT_MS`, `MONGODB_CONNECT_TIMEOUT_MS`, `MONGODB_SOCKET_TIMEOUT_MS`, and `MONGODB_MAX_POOL_SIZE`. The application lazily pings MongoDB, creates validators/indexes, and reports storage health without making camera startup depend on the server.

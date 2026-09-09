@@ -904,6 +904,77 @@ class CustomGestureService:
             })
             return dict(self._runtime)
 
+    def match_frame_read_only(self, left_hand: Any, right_hand: Any) -> Dict[str, Any]:
+        """Best enabled-custom-gesture match without mutating library state.
+
+        Connect uses this read-only matcher so it can relay saved custom
+        gestures while the Custom Gestures page capture/test/live runtime and
+        its self-learning buffers stay completely untouched.
+        """
+        with self._lock:
+            return self._best_match(left_hand, right_hand)
+
+    def get_replay_sample(self, gesture_id: Any) -> Optional[Dict[str, Any]]:
+        """Return an existing saved sample for gesture replay/preview.
+
+        Reuses only data already stored by the Custom Gesture capture system
+        (mean of the normalized landmark tracks across saved samples).  Returns
+        None when the gesture does not exist or has no samples yet.
+        """
+        safe_id = sanitize_gesture_name(gesture_id)
+        metadata = self._load_metadata(safe_id)
+        if metadata is None:
+            return None
+        landmarks_sum: Dict[int, List[float]] = {}
+        count = 0
+        for path in self._sample_paths(safe_id):
+            try:
+                payload = self._read_json(path)
+            except Exception:
+                continue
+            raw = payload.get("normalized_landmarks")
+            if not isinstance(raw, list) or len(raw) < 21:
+                raw = payload.get("raw_landmarks")
+            if not isinstance(raw, list) or len(raw) < 21:
+                continue
+            for index, point in enumerate(raw[:21]):
+                if not isinstance(point, dict):
+                    continue
+                try:
+                    x = float(point.get("x", 0.0) or 0.0)
+                    y = float(point.get("y", 0.0) or 0.0)
+                    z = float(point.get("z", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                bucket = landmarks_sum.setdefault(index, [0.0, 0.0, 0.0])
+                bucket[0] += x
+                bucket[1] += y
+                bucket[2] += z
+            count += 1
+        if not count:
+            return {
+                "gesture_id": safe_id,
+                "gesture_name": metadata.get("gesture_name", safe_id),
+                "description": metadata.get("description", ""),
+                "sample_count": 0,
+                "points": None,
+            }
+        points = []
+        for index in range(21):
+            bucket = landmarks_sum[index]
+            points.append({
+                "x": round(bucket[0] / count, 6),
+                "y": round(bucket[1] / count, 6),
+                "z": round(bucket[2] / count, 6),
+            })
+        return {
+            "gesture_id": safe_id,
+            "gesture_name": metadata.get("gesture_name", safe_id),
+            "description": metadata.get("description", ""),
+            "sample_count": count,
+            "points": points,
+        }
+
     def _select_hand_for_capture(self, left_hand: Any, right_hand: Any, required_hand: str) -> Tuple[Optional[Any], str, str]:
         if required_hand == "left":
             return left_hand, "left" if left_hand is not None else "none", "Show your left hand."
