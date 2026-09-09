@@ -37,11 +37,16 @@ class Config:
     DWELL_DURATION_SECONDS = 1.2
     DWELL_COOLDOWN_SECONDS = 0.5
 
-    # Right-Hand Vertical Swipe Scrolling Parameters
-    SCROLL_DISPLACEMENT_THRESHOLD = 0.11  # Normalized Y distance (11% of camera frame height)
-    SCROLL_WINDOW_SECONDS = 0.28          # Time window to complete deliberate swipe
-    SCROLL_COOLDOWN_SECONDS = 0.38        # 380ms debounce between successive scrolls
-    DEFAULT_SCROLL_AMOUNT = 300           # Medium default scroll ticks
+    # Global Right-Hand Vertical Scrolling Parameters.  Coordinates are
+    # MediaPipe-normalized and are deliberately independent of finger poses or
+    # custom-gesture labels.
+    SCROLL_DISPLACEMENT_THRESHOLD = 0.045  # ~22 px in a 480 px camera frame
+    SCROLL_WINDOW_SECONDS = 0.38           # Recent movement window
+    SCROLL_COOLDOWN_SECONDS = 0.42         # Bounded repeat rate between scroll events
+    SCROLL_SMOOTHING = 0.65                # EMA weight for palm-center tracking
+    DEFAULT_SCROLL_AMOUNT = 300            # Medium browser scroll distance (px)
+    SCROLL_MAX_AMOUNT = 520                # Comfortable upper bound for a single event
+    HAND_SCROLL_EVENT_BUFFER_SIZE = 80     # Small, in-memory browser event relay
 
     # Right-Fist Confirmation Debounce Settings
     FIST_CONSECUTIVE_FRAMES = 3
