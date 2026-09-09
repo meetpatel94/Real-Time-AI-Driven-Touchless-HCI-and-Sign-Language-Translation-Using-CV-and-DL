@@ -37,6 +37,8 @@
             <button id="btn-cancel-create" class="custom-icon-btn" type="button" aria-label="Close create form">×</button>
         </div>
 
+        <p id="candidate-prefill-note" class="custom-prefill-note" hidden></p>
+
         <form id="create-gesture-form" class="custom-form">
             <label for="gesture-name">
                 Gesture Name
@@ -124,6 +126,11 @@
                         <span>Confidence:</span>
                         <strong id="custom-live-confidence">0.0%</strong>
                     </div>
+                    <div id="custom-correction-applied" class="custom-correction-applied" hidden></div>
+                    <div id="custom-correction-prompt" class="custom-correction-prompt" hidden>
+                        <span>Was this incorrect?</span>
+                        <button id="btn-correct-prediction" type="button" class="custom-small-btn">Correct Prediction</button>
+                    </div>
                 </div>
                 <div class="test-comparison-box custom-test-comparison">
                     <div class="compare-item">
@@ -157,6 +164,17 @@
         </aside>
     </div>
 
+    <section id="custom-candidates-section" class="card custom-candidates-card" hidden>
+        <div class="custom-section-heading">
+            <div>
+                <span class="custom-eyebrow">Unknown Gesture Discovery</span>
+                <h3>New Gesture Candidates</h3>
+            </div>
+            <span class="custom-candidates-note">Repeated similar unknown gestures are grouped here. Nothing is learned until you approve it.</span>
+        </div>
+        <div id="custom-candidate-list" class="custom-candidate-grid"></div>
+    </section>
+
     <section class="card custom-library-section">
         <div class="custom-section-heading">
             <div>
@@ -169,6 +187,16 @@
             <div class="custom-empty-state">No custom gestures created yet.</div>
         </div>
     </section>
+
+    <div id="custom-modal-overlay" class="custom-modal-overlay" hidden>
+        <div class="custom-modal" role="dialog" aria-modal="true" aria-labelledby="custom-modal-title">
+            <div class="custom-modal-header">
+                <h3 id="custom-modal-title">Details</h3>
+                <button id="btn-close-modal" class="custom-icon-btn" type="button" aria-label="Close dialog">×</button>
+            </div>
+            <div id="custom-modal-body" class="custom-modal-body"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

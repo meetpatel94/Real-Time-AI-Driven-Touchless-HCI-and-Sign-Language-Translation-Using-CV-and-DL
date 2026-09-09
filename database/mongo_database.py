@@ -36,6 +36,7 @@ class MongoDatabase:
         "learned_gestures",
         "validated_corrections",
         "custom_gesture_mappings",
+        "custom_gesture_learning_events",
     )
 
     _schema_lock = threading.Lock()
@@ -210,6 +211,20 @@ class MongoDatabase:
                         },
                     }
                 },
+                "custom_gesture_learning_events": {
+                    "$jsonSchema": {
+                        "bsonType": "object",
+                        "required": ["_id", "event_type", "created_at"],
+                        "properties": {
+                            "_id": {"bsonType": "string"},
+                            "event_type": {"bsonType": "string"},
+                            "created_at": {"bsonType": "string"},
+                            "gesture_id": {"bsonType": "string"},
+                            "candidate_id": {"bsonType": "string"},
+                            "details": {"bsonType": "object"},
+                        },
+                    }
+                },
             }
 
             for name in self.COLLECTIONS:
@@ -251,6 +266,7 @@ class MongoDatabase:
                 "learned_gestures": [("user_id", 1), ("gesture_key", 1)],
                 "validated_corrections": [("user_id", 1), ("created_at", -1)],
                 "custom_gesture_mappings": [("user_id", 1), ("learned_gesture_id", 1)],
+                "custom_gesture_learning_events": [("created_at", -1), ("gesture_id", 1)],
             }
             unique_indexes = {
                 ("user_profiles", (("user_id", 1),)),

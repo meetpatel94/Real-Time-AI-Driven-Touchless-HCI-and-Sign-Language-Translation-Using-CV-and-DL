@@ -55,6 +55,7 @@ def start_custom_gesture_capture():
             hand=payload.get("hand", "either"),
             target_samples=target,
             replace=payload.get("replace") is True,
+            candidate_id=payload.get("candidate_id") or None,
         )
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
@@ -124,6 +125,83 @@ def delete_custom_gesture(gesture_id):
         # traversal attempts never reach shutil.rmtree.
         sanitize_gesture_name(gesture_id)
         result = custom_gesture_service.delete_gesture(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    return _json_result(result)
+
+
+# ----------------------------------------------------------------------
+# Self-learning (unknown discovery, mistake memory, gesture evolution).
+# All endpoints are scoped to the Custom Gestures workspace only.
+# ----------------------------------------------------------------------
+@custom_gesture_bp.route("/api/custom-gestures/learning/status", methods=["GET"])
+def custom_gesture_learning_status():
+    return jsonify(custom_gesture_service.learning_status())
+
+
+@custom_gesture_bp.route("/api/custom-gestures/learning/candidates/<candidate_id>/learn", methods=["POST"])
+def learn_custom_gesture_candidate(candidate_id):
+    result = custom_gesture_service.prepare_candidate_learning(candidate_id)
+    if not result.get("success"):
+        status = 404 if "no longer" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/learning/candidates/<candidate_id>/ignore", methods=["POST"])
+def ignore_custom_gesture_candidate(candidate_id):
+    result = custom_gesture_service.ignore_candidate(candidate_id)
+    if not result.get("success"):
+        status = 404 if "no longer" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/corrections", methods=["POST"])
+def record_custom_gesture_correction():
+    payload = _payload()
+    predicted = payload.get("predicted_gesture_id", payload.get("predicted", ""))
+    correct = payload.get("correct_gesture_id", payload.get("correct", ""))
+    if not predicted or not correct:
+        return jsonify({"success": False, "error": "Both predicted and corrected gestures are required."}), 400
+    try:
+        result = custom_gesture_service.record_correction(predicted, correct)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    return _json_result(result, success_status=201)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/corrections", methods=["GET"])
+def list_custom_gesture_corrections():
+    limit = request.args.get("limit", 20, type=int)
+    return jsonify(custom_gesture_service.list_corrections(limit=limit))
+
+
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/evolution", methods=["GET"])
+def custom_gesture_evolution(gesture_id):
+    try:
+        result = custom_gesture_service.evolution_details(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    if not result.get("success"):
+        status = 404 if "not found" in str(result.get("error", "")).lower() else 400
+        return jsonify(result), status
+    return jsonify(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/variations/accept", methods=["POST"])
+def accept_custom_gesture_variations(gesture_id):
+    try:
+        result = custom_gesture_service.accept_pending_variations(gesture_id)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    return _json_result(result)
+
+
+@custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/variations/ignore", methods=["POST"])
+def ignore_custom_gesture_variations(gesture_id):
+    try:
+        result = custom_gesture_service.discard_pending_variations(gesture_id)
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
     return _json_result(result)
