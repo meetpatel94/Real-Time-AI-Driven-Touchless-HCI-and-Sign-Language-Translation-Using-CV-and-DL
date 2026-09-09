@@ -71,6 +71,22 @@ The upgrade adds an independent reasoning layer at the MediaPipe boundary withou
 * `GET|POST /api/personalization/mappings` and `DELETE /api/personalization/mappings/<id>` — manage user-owned Back, Scroll Up/Down, and Click mappings.
 * `POST /api/personalization/reset` — remove this profile's calibration, learned gestures, corrections, mappings, and adaptive interaction history (the separate profile reset still retains history).
 
+### Contextual sentence completion (Sign Language Studio text box)
+
+The studio sentence box suggests **complete phrases and sentences**, not just the next word. Typing (or signing) `I am go` offers `I am going home`, `I am going to school`, `I am going outside`; `Where is` offers `Where is the bathroom?`, `Where is my phone?`, `Where is the hospital?`.
+
+* **Hybrid local language model** — `services/sentence_completion_service.py` combines a hand-ranked phrase bank (`services/phrase_corpus.py`), a curated sentence corpus that also trains a trigram/bigram back-off model, and vocabulary completion for partially typed words. It is pure Python: no new dependency, no GPU, sub-millisecond predictions with an LRU cache.
+* **Context aware** — only the clause being completed is used, so multi-sentence text, commas, question marks, mid-text caret edits and backspaces all behave correctly. The trailing word is evaluated both as complete and as still-being-typed, which is what turns `I am go` into `I am going home` instead of `I am go home`.
+* **Precision over volume** — candidates are scored, de-duplicated, rejected when they end on a fragment such as `Where is the`, and filtered by a confidence floor that rises as the context gets shorter. Empty, one-letter or unknown input returns nothing; at most three suggestions are ever shown.
+* **Personalization as a signal, not an override** — accepted completions are remembered per context in the optional `phrase_memory` MongoDB collection (in-memory fallback otherwise). A remembered phrase is boosted by at most `+0.09` and may only displace the weakest suggestion, so the language model always keeps the leading positions.
+
+API surface:
+
+* `GET /api/studio/completions?text=…&caret=…&limit=3` — ranked completions for the clause ending at `caret` (also returns `clause`, `clause_start`, per-suggestion `confidence`, `source` and `personalized`).
+* `POST /api/studio/completions/accept` — remembers `{ text, suggestion, caret }` after the user picks a suggestion.
+
+The client (`static/js/studio/autocomplete.js`) debounces requests (~180 ms), caches responses, and supports ArrowUp/ArrowDown navigation, Enter or Tab to accept, Escape and outside-click to dismiss. It only binds to the studio sentence input, so A–Z recognition, word prediction, custom gestures, gesture DNA, mistake memory, gesture evolution, air mouse, air drawing and global hand scrolling are untouched. The existing word chips below the suggestions remain the word-level predictor.
+
 ### MongoDB configuration
 
 Set `MONGODB_URI` and `MONGODB_DATABASE` in the environment (the conventional `MONGO_URI`, `MONGODB_DB_NAME`, `MONGO_DB_NAME`, or `MONGO_DATABASE` aliases are also accepted). Optional bounded timeout settings are `MONGODB_SERVER_SELECTION_TIMEOUT_MS`, `MONGODB_CONNECT_TIMEOUT_MS`, `MONGODB_SOCKET_TIMEOUT_MS`, and `MONGODB_MAX_POOL_SIZE`. The application lazily pings MongoDB, creates validators/indexes, and reports storage health without making camera startup depend on the server.

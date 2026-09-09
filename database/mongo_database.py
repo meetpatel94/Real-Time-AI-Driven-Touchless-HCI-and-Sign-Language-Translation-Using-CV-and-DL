@@ -37,6 +37,8 @@ class MongoDatabase:
         "validated_corrections",
         "custom_gesture_mappings",
         "custom_gesture_learning_events",
+        # Contextual text completion: accepted phrase memory (no raw frames).
+        "phrase_memory",
     )
 
     _schema_lock = threading.Lock()
@@ -225,6 +227,20 @@ class MongoDatabase:
                         },
                     }
                 },
+                "phrase_memory": {
+                    "$jsonSchema": {
+                        "bsonType": "object",
+                        "required": ["_id", "user_id", "context_key", "tail"],
+                        "properties": {
+                            "_id": {"bsonType": "string"},
+                            "user_id": {"bsonType": "string"},
+                            "context_key": {"bsonType": "string"},
+                            "tail": {"bsonType": "string"},
+                            "count": {"bsonType": ["double", "int", "long"]},
+                            "updated_at": {"bsonType": "string"},
+                        },
+                    }
+                },
             }
 
             for name in self.COLLECTIONS:
@@ -267,6 +283,7 @@ class MongoDatabase:
                 "validated_corrections": [("user_id", 1), ("created_at", -1)],
                 "custom_gesture_mappings": [("user_id", 1), ("learned_gesture_id", 1)],
                 "custom_gesture_learning_events": [("created_at", -1), ("gesture_id", 1)],
+                "phrase_memory": [("user_id", 1), ("updated_at", -1)],
             }
             unique_indexes = {
                 ("user_profiles", (("user_id", 1),)),

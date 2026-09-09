@@ -62,7 +62,24 @@
                 <span class="badge badge-live">● LIVE INPUT</span>
             </div>
 
-            <textarea id="sentence-input-area" class="sentence-compact-textarea" placeholder="Start signing..."></textarea>
+            <!-- TEXT INPUT + CONTEXTUAL AUTOCOMPLETE -->
+            <div class="sentence-input-wrap">
+                <textarea id="sentence-input-area" class="sentence-compact-textarea" placeholder="Start signing..."
+                          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                          role="combobox" aria-expanded="false" aria-autocomplete="list"
+                          aria-controls="autocomplete-list"></textarea>
+
+                <!-- CONTEXTUAL SENTENCE SUGGESTIONS (max 3, keyboard navigable) -->
+                <div id="autocomplete-panel" class="autocomplete-panel" hidden>
+                    <ul id="autocomplete-list" class="autocomplete-list" role="listbox"
+                        aria-label="Sentence suggestions"></ul>
+                    <div class="autocomplete-hint">
+                        <span>↑ ↓ navigate</span>
+                        <span>⏎ select</span>
+                        <span>esc dismiss</span>
+                    </div>
+                </div>
+            </div>
 
             <div class="sentence-meta-row">
                 <div class="sentence-counts">
@@ -161,5 +178,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/studio/autocomplete.js') }}"></script>
 <script src="{{ url_for('static', filename='js/studio/sign_language_studio.js') }}"></script>
 {% endblock %}
