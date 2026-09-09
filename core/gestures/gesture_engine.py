@@ -15,6 +15,7 @@ from core.mouse.scroll_controller import scroll_controller
 from core.sign_language.dataset_collector import dataset_collector
 from core.recognition.inference_worker import inference_worker
 from core.recognition.recognition_state import recognition_state
+from core.custom_gestures.service import custom_gesture_service
 from services.adaptive_intent_service import adaptive_intent_service
 from services.interaction_history_service import interaction_history_service
 from services.logging_service import logger
@@ -126,6 +127,39 @@ class GestureEngine:
                 self.hands.close()
                 self.hands = None
 
+    def _draw_custom_gesture_overlay(self, frame, status) -> None:
+        """Render custom-library status on the shared camera frame.
+
+        The text is display-only and is used exclusively when the active module
+        is Custom Gestures; it does not feed back into any global prediction or
+        control state.
+        """
+        try:
+            lines = custom_gesture_service.overlay_lines()
+            if not lines:
+                return
+            width = frame.shape[1]
+            panel_height = 30 + (len(lines) * 24)
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (12, 12), (min(width - 12, 420), panel_height), (15, 23, 42), -1)
+            cv2.addWeighted(overlay, 0.72, frame, 0.28, 0, frame)
+            for index, line in enumerate(lines[:5]):
+                color = (56, 189, 248) if index == 0 else (248, 250, 252)
+                cv2.putText(
+                    frame,
+                    str(line)[:58],
+                    (24, 42 + index * 24),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55 if index else 0.62,
+                    color,
+                    2 if index == 0 else 1,
+                    cv2.LINE_AA,
+                )
+        except Exception as exc:
+            if not self._adaptive_error_logged:
+                logger.warning(f"Custom gesture overlay skipped: {exc}")
+                self._adaptive_error_logged = True
+
     def _process_loop(self) -> None:
         while self.is_running:
             state = global_state.get_state()
@@ -136,6 +170,7 @@ class GestureEngine:
                 inference_worker.notify_no_hand()
                 recognition_state.set_hand_presence(False, False)
                 recognition_state.process_right_hand_fist(False)
+                custom_gesture_service.notify_camera_off()
                 if self._adaptive_camera_active:
                     self.reset_adaptive_state()
                     self._adaptive_camera_active = False
@@ -150,6 +185,7 @@ class GestureEngine:
             if frame is None:
                 # A disconnected/unopened camera is also a stream interruption;
                 # do not let its last pose remain eligible for calibration.
+                custom_gesture_service.notify_camera_off()
                 if self._adaptive_camera_active:
                     self.reset_adaptive_state()
                     self._adaptive_camera_active = False
@@ -199,6 +235,16 @@ class GestureEngine:
 
             recognition_state.set_hand_presence(left_hand is not None, right_hand is not None)
             active_mod = state.get("active_module")
+            custom_mode_active = active_mod == "custom_gestures"
+            custom_status = None
+            try:
+                custom_status = custom_gesture_service.process_frame(left_hand, right_hand, active_mod)
+            except Exception as exc:
+                # Custom gestures must fail open and never break the existing
+                # A-Z recognition, mouse, translation or adaptive pipelines.
+                if not self._adaptive_error_logged:
+                    logger.warning(f"Custom gesture frame processing skipped: {exc}")
+                    self._adaptive_error_logged = True
 
             # --------------------------------------------------
             # ADAPTIVE OBSERVATION LAYER
@@ -285,6 +331,7 @@ class GestureEngine:
                     and getattr(decision, "used", False)
                     and getattr(decision, "mapping_action", None)
                     and state["gesture_enabled"]
+                    and not custom_mode_active
                 )
                 if personalized_mapping_active:
                     self._execute_personalized_mapping(profile, decision)
@@ -317,7 +364,7 @@ class GestureEngine:
             # --------------------------------------------------
             # 2. RIGHT HAND PIPELINE (AIR MOUSE + FIST + SCROLL)
             # --------------------------------------------------
-            if right_hand and state["gesture_enabled"]:
+            if right_hand and state["gesture_enabled"] and not custom_mode_active:
                 gesture = right_gesture
                 recognition_state.set_right_gesture(gesture.value)
 
@@ -414,6 +461,9 @@ class GestureEngine:
                     "dwell_active": False,
                     "interaction_state": InteractionState.IDLE.value
                 })
+
+            if custom_mode_active:
+                self._draw_custom_gesture_overlay(display_frame, custom_status)
 
             camera_manager.set_display_frame(display_frame)
             time.sleep(0.005)

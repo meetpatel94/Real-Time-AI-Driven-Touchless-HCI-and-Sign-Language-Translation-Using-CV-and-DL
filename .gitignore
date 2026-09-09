@@ -80,6 +80,9 @@ tmp/
 # Ignores local image datasets (13,000+ images) while keeping directory structures
 data/dataset/
 data/dataset/*
+# Runtime user-created custom gesture samples are kept local.
+data/custom_gestures/*
+!data/custom_gestures/.gitkeep
 data/exports/*
 data/raw/
 data/processed/
