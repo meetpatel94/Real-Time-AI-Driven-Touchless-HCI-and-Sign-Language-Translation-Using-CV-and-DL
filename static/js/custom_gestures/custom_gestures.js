@@ -49,12 +49,23 @@ class CustomGestureManager {
         if (liveBtn) liveBtn.addEventListener('click', () => this.startLiveRecognition());
         if (stopBtn) stopBtn.addEventListener('click', () => this.stopCustomMode(true));
         if (correctBtn) correctBtn.addEventListener('click', () => this.openCorrectionModal());
-        if (closeBtn) closeBtn.addEventListener('click', () => this.closeModal());
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModal();
+            });
+        }
         if (overlay) overlay.addEventListener('click', (event) => {
             if (event.target === overlay) this.closeModal();
         });
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') this.closeModal();
+            if (event.key === 'Escape') {
+                const ov = document.getElementById('custom-modal-overlay');
+                if (ov && !ov.hidden) {
+                    this.closeModal();
+                }
+            }
         });
     }
 
@@ -917,13 +928,45 @@ class CustomGestureManager {
         titleEl.innerText = title;
         body.innerHTML = bodyHtml;
         overlay.hidden = false;
+        overlay.style.display = 'flex';
+        // Ensure close button works even if re-rendered or listener was lost
+        const closeBtn = document.getElementById('btn-close-modal');
+        if (closeBtn) {
+            closeBtn.onclick = (e) => {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                this.closeModal();
+            };
+        }
+        // Allow any button with data-action="close-modal" inside the modal to close it
+        body.querySelectorAll('[data-action="close-modal"]').forEach(btn => {
+            btn.addEventListener('click', () => this.closeModal());
+        });
     }
 
     closeModal() {
         const overlay = document.getElementById('custom-modal-overlay');
         const body = document.getElementById('custom-modal-body');
-        if (overlay) overlay.hidden = true;
+        const titleEl = document.getElementById('custom-modal-title');
+        if (overlay) {
+            overlay.hidden = true;
+            overlay.style.display = 'none';
+        }
         if (body) body.innerHTML = '';
+        if (titleEl) {
+            // Reset title to default to avoid stale state on next open
+            titleEl.innerText = 'Details';
+        }
+        // Restore page interaction and scrolling
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        const contentArea = document.getElementById('content-area');
+        if (contentArea) {
+            contentArea.style.overflow = '';
+            contentArea.style.pointerEvents = '';
+        }
     }
 
     async updateRuntimeStatus() {
