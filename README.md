@@ -87,49 +87,40 @@ API surface:
 
 The client (`static/js/studio/autocomplete.js`) debounces requests (~180 ms), caches responses, and supports ArrowUp/ArrowDown navigation, Enter or Tab to accept, Escape and outside-click to dismiss. It only binds to the studio sentence input, so A–Z recognition, word prediction, custom gestures, gesture DNA, mistake memory, gesture evolution, air mouse, air drawing and global hand scrolling are untouched. The existing word chips below the suggestions remain the word-level predictor.
 
-### GestureForge Connect (two-person real-time gesture rooms)
+### GestureForge Connect (two-person, simultaneous gesture rooms)
 
-A new **Connect** section (sidebar → 🤝 Connect, route `/connect`) lets two people on
-different devices/browsers talk in a private room using the app's existing camera +
-MediaPipe recognition:
+The **Connect** section (sidebar → 🤝 Connect, route `/connect`) lets two people on
+different devices/browsers communicate as a true bidirectional room:
 
-`MediaPipe hands (existing engine) → Connect detector (stable + hold-to-send gate) → WebSocket relay → other participant`
+`User 1 local camera → local MediaPipe/custom matching → gesture meaning → WebSocket → User 2`
+`User 2 local camera → local MediaPipe/custom matching → gesture meaning → WebSocket → User 1`
 
-* **Rooms** — User A clicks **Create Room** and gets a short code such as `GF-K82M`
-  (share via **Copy Code**); User B enters the code and clicks **Join Room**. A room
-  holds exactly two participants ("Room is full." otherwise), and codes expire after
-  a bounded idle TTL. Room state and history are ephemeral in-memory only.
-* **Two panels** — after joining, a desktop grid shows **You** (camera, detected
-  gesture, hold progress, seat control) and **Other User** (connection status, last
-  gesture, meaning, confidence), plus a shared **timeline** for gestures and text and
-  a text input fallback (`[Type a message…] [Send]`).
-* **Recognition is reused, not duplicated** — Connect consumes the landmark results
-  already produced by `core/gestures/gesture_engine.py`; it never opens a second
-  camera pipeline and it never uploads frames. Only lightweight JSON events
-  (`gesture_id`, meaning/symbol, timestamp, small metadata) travel over WebSocket.
-* **Saved custom gestures win** — matching runs through the existing Custom Gesture
-  library (`match_frame_read_only` read-only matcher), so a trained
-  `☝️ → hii`-style mapping relays exactly like the Custom Gestures page. Built-in
-  defaults exist for untrained poses (☝️ Hii, 👍 Okay, ✌️ Peace, ✊ Stop, …).
-* **Duplicate prevention** — a gesture must be stable for N frames and then held
-  (~2 s) before it is sent **once**; re-sending requires the hand to drop/change and
-  the gesture to be recognized again.
-* **Gesture replay** — received custom gestures show **▶ Replay Gesture**, which
-  animates the mean normalized landmark track of the real saved samples via
-  `GET /api/connect/replay/<gesture_id>` (404 when no sample exists → name/symbol fallback).
-* **Turn taking** — the camera feed seat is exclusive. The other participant's send
-  request is queued and granted automatically when the current sender releases the
-  feed, so both users can gesture in turn.
-* **Isolation** — all Connect processing is gated on `active_module == "connect"` and
-  an active room seat. Opening Overview, Recognition, Translation, Custom Gestures,
-  Studio, Air Drawing etc. never starts Connect rooms, sockets, or gesture sending;
-  leaving `/connect` closes the socket, releases the seat and resets the detector.
-* **Failure handling** — invalid/expired room, room full, session mismatch, seat busy,
-  camera off, and socket drops are reported with clear messages; the client
-  reconnects automatically (`🔄 Reconnecting…`) and resumes the same room/role.
+* **Rooms and roles** — the creator clicks **Create Room** and is clearly shown as
+  **User 1 / Creator**. The joiner enters the short code (for example `GF-K82M`)
+  and is shown as **User 2 / Joiner**. A room holds exactly two participants and
+  expires after a bounded idle TTL; room state and history are ephemeral in memory.
+* **Independent devices** — each browser requests and processes its own camera
+  locally. Both camera and recognition states can be active simultaneously. No
+  camera ownership, request queue, handover, or turn-taking state exists in the
+  live Connect path.
+* **Lightweight transport** — WebSocket messages contain only recognized gesture
+  ids/meanings/symbols, confidence metadata, or text. Webcam frames and continuous
+  landmarks never cross the WebSocket. The existing Custom Gesture library's
+  saved derived features remain the source of truth; Connect does not create a
+  second gesture database or recognition model.
+* **Gesture behavior** — built-in poses include ☝️ Hii, 👍 Okay, ✌️ Peace, ✊ Stop,
+  and more. Saved custom gestures win over built-ins. Temporal stability,
+  confidence thresholds, a roughly two-second hold-to-send gate, and duplicate
+  suppression are applied independently on each device.
+* **Shared conversation** — gesture and text events from both users appear in the
+  same timeline. Received custom gestures keep **▶ Replay Gesture**, backed by
+  `GET /api/connect/replay/<gesture_id>` and the existing saved samples.
+* **Isolation and recovery** — only the `/connect` page opens its room socket and
+  local recognition loop. Other modules are unchanged. Invalid/expired rooms,
+  room-full protection, session mismatch, camera errors, and socket drops are
+  reported; reconnect resumes the same room and role.
 * **Transport** — the relay uses Flask-Sock on the same Flask dev-server port
-  (`flask-sock==0.7.0` added to `requirements.txt`); no polling is used for
-  communication.
+  (`flask-sock==0.7.0`); no polling is used for communication.
 
 ### Running the two-device LAN test (PC + phone on the same Wi-Fi)
 
@@ -156,8 +147,9 @@ devices on your LAN can reach it (do **not** expose it beyond your LAN):
 Both devices talk to the same Flask + WebSocket server: the WebSocket URL is
 built from `window.location` (protocol + host of the opened page), so no
 `127.0.0.1`/`localhost` is hardcoded in the Connect client. Both sides show
-**Other User → Connected**; gestures (seat holder only, take turns) and text
-messages relay in both directions.
+**Other User → Connected**; both local cameras can recognize and relay gestures
+at the same time, while text messages work in both directions. Browsers may
+require an HTTPS origin before allowing camera access on a LAN address.
 
 Troubleshooting: allow Python through the PC's firewall, keep both devices on
 the same network/subnet, and check that the router does not enable

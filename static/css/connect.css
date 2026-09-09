@@ -16,6 +16,13 @@
     display: none !important;
 }
 
+/* Connect uses browser-local camera state; the shared server-camera controls
+   must not accidentally toggle another module's CameraManager. */
+body.connect-local-mode #sidebar .control-group[data-tooltip="Camera ON/OFF"],
+body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Global Hand Scroll ON/OFF"] {
+    display: none;
+}
+
 /* ---------- shared bits ---------- */
 .connect-eyebrow {
     font-size: 0.7rem;
@@ -401,6 +408,48 @@
 .connect-feed {
     position: relative;
     border: 1px solid var(--border-color);
+    background: #020617;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+}
+
+.connect-local-video {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    background: #020617;
+}
+
+.connect-local-video.active {
+    display: block;
+}
+
+.connect-camera-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 1rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.connect-camera-placeholder span {
+    font-size: 2.2rem;
+}
+
+.connect-camera-placeholder strong {
+    color: var(--text-main);
+    font-size: 0.88rem;
+}
+
+.connect-camera-placeholder small {
+    font-size: 0.75rem;
 }
 
 .connect-feed-overlay {
@@ -527,6 +576,12 @@
     flex-direction: column;
     gap: 0.8rem;
     flex: 1;
+}
+
+.connect-other-status-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
 }
 
 .connect-other-main {
