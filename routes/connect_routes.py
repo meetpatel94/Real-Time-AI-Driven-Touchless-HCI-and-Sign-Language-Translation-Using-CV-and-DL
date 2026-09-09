@@ -21,6 +21,25 @@ def connect_page():
     return render_template("connect/index.html")
 
 
+@connect_bp.route("/api/connect/health", methods=["GET"])
+def connect_health():
+    """Lightweight reachability probe for LAN / two-device Connect testing.
+
+    Reports only whether this server answers on the address the tester used
+    plus the WebSocket path the page will dial (clients derive it from
+    window.location — see static/js/connect/connect.js). It never touches
+    room state, recognition, or any camera logic.
+    """
+    return jsonify(
+        {
+            "ok": True,
+            "status": "healthy",
+            "service": "gestureforge-connect",
+            "ws_path": Config.CONNECT_WS_PATH,
+        }
+    )
+
+
 @connect_bp.route("/api/connect/mappings", methods=["GET"])
 def gesture_mappings():
     """Cached client-side mapping table (built-ins + saved custom gestures).

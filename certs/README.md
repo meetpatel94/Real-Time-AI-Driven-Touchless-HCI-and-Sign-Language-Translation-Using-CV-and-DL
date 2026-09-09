@@ -29,7 +29,14 @@ with the new IP.
 
 ## No certificate yet?
 
-If these files are missing, `python app.py` automatically falls back to
-Flask's **ad-hoc self-signed certificate** (requires `pip install pyopenssl`)
-so HTTPS still works for LAN testing — DEVELOPMENT/LAN TESTING ONLY, browsers
-will show a one-time "connection is not private" warning to accept.
+With no certificate files (and no `GESTUREFORGE_FORCE_HTTPS=1`), `python app.py`
+serves **plain HTTP on 0.0.0.0:5000** — LAN reachability first. For the
+phone-camera step, quick self-signed HTTPS fallback:
+
+```bash
+GESTUREFORGE_FORCE_HTTPS=1 python app.py   # Windows: set GESTUREFORGE_FORCE_HTTPS=1 && python app.py
+```
+
+requires `pip install pyopenssl` (already in requirements.txt) —
+DEVELOPMENT/LAN TESTING ONLY, browsers will show a one-time "connection is
+not private" warning to accept.
