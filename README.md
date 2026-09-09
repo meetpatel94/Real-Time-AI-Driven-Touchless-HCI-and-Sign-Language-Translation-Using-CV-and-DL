@@ -128,10 +128,17 @@ Mobile browsers only allow `navigator.mediaDevices.getUserMedia()` (camera
 access) from a **secure context**. `https://127.0.0.1` counts as secure, but
 a plain `http://192.168.x.x` LAN address does not — so a phone opening the
 HTTP LAN URL sees *"This browser does not provide a local camera."* while the
-PC (using `127.0.0.1`) works fine. The dev server now serves **HTTPS on the
-LAN** so both devices get real camera access. Gesture recognition, MediaPipe,
+PC (using `127.0.0.1`) works fine.
+
+By default `python app.py` serves **plain HTTP on `0.0.0.0:5000`**, so the
+page is reachable from every interface: `http://127.0.0.1:5000/connect` on
+the PC and `http://<LAN-IP>:5000/connect` from the same PC or another device
+(subject to the PC firewall). A TLS-only port would break those plain-HTTP
+LAN URLs — an HTTPS dev port is therefore always opt-in, never a silent
+default. For the phone-camera step, enable HTTPS with option 1 or 2 below;
+only the transport changes to HTTPS/WSS. Gesture recognition, MediaPipe,
 Custom Gestures, the WebSocket room/relay architecture, and all existing
-Connect UI behavior are unchanged — only the transport is now HTTPS/WSS.
+Connect UI behavior are unchanged.
 
 1. **Install/generate the development certificate (recommended: mkcert).**
    Certificates are never committed to the repo (see `.gitignore`); each
@@ -148,13 +155,15 @@ Connect UI behavior are unchanged — only the transport is now HTTPS/WSS.
           127.0.0.1 localhost 192.168.29.98
    ```
 
-   If you skip this step, the app automatically falls back to Flask's
-   **ad-hoc self-signed certificate** (`pip install pyopenssl`, already in
-   `requirements.txt`) so HTTPS still works — this is a
+   If you skip this step, either set `GESTUREFORGE_FORCE_HTTPS=1` when
+   starting the app to use Flask's **ad-hoc self-signed certificate**
+   (`pip install pyopenssl`, already in `requirements.txt`) — a
    **DEVELOPMENT / LAN TESTING ONLY** fallback, not a production security
-   solution. Each browser will show a one-time "connection is not private"
-   warning; choose *Advanced → Proceed* to continue. See `certs/README.md`
-   for details and troubleshooting.
+   solution; each browser will show a one-time "connection is not private"
+   warning; choose *Advanced → Proceed* to continue. Without certificate
+   files or that flag the server stays on plain HTTP, which cannot give the
+   phone camera access (browsers require a secure context). See
+   `certs/README.md` for details and troubleshooting.
 
 2. **Start GestureForge** on the PC:
 
@@ -163,16 +172,26 @@ Connect UI behavior are unchanged — only the transport is now HTTPS/WSS.
    python app.py
    ```
 
-   The startup banner prints:
+   The startup banner prints (scheme reflects the active mode):
 
    ```
-   Local URL:
-     https://127.0.0.1:5000/connect
-   LAN URL:
-     https://<detected-LAN-IP>:5000/connect
+   GestureForge server started
+
+   Local:
+   http://127.0.0.1:5000
+
+   LAN:
+   http://192.168.29.98:5000
+
+   Connect:
+   http://192.168.29.98:5000/connect
    ```
 
-   and reminds you: **"Use the HTTPS LAN URL on the second device."**
+   with the LAN IP auto-detected. In HTTPS mode the same URLs use
+   `https://` and the banner reminds you: **"Use the HTTPS LAN URL on the
+   second device."** Quick reachability check from any device:
+   `http://<LAN-IP>:5000/api/connect/health` should answer
+   `{"ok": true, ...}`.
 
 3. **Find the PC's LAN IP** if it wasn't auto-detected: `ipconfig` (Windows)
    or `ip addr` / `ifconfig` (Linux/macOS), e.g. `192.168.29.98`.
@@ -205,8 +224,10 @@ way as before.
 but mobile browsers will typically refuse camera access on that insecure
 origin — always use the `https://` LAN URL on the second device.
 
-To force plain HTTP (e.g. behind an external HTTPS-terminating proxy), set
-`GESTUREFORGE_DISABLE_HTTPS=1` before starting the app.
+To force plain HTTP while a certificate pair exists in `certs/` (e.g. behind
+an external HTTPS-terminating proxy), set `GESTUREFORGE_DISABLE_HTTPS=1`
+before starting the app. HTTPS without certificate files is opt-in via
+`GESTUREFORGE_FORCE_HTTPS=1` (ad-hoc self-signed).
 
 ### MongoDB configuration
 
