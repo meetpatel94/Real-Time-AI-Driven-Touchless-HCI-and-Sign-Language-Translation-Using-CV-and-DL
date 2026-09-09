@@ -204,18 +204,31 @@ class GestureEngine:
             right_hand = None
 
             if results.multi_hand_landmarks and results.multi_handedness:
+                # Keep the strongest detection per side.  Handedness is taken
+                # from the existing MediaPipe classification, so the right hand
+                # owns cursor/scroll routing even when both hands are visible.
+                left_candidates = []
+                right_candidates = []
                 for idx, hand_handedness in enumerate(results.multi_handedness):
-                    classification = hand_handedness.classification[0].label
+                    if idx >= len(results.multi_hand_landmarks):
+                        continue
+                    classification = hand_handedness.classification[0]
+                    score = float(getattr(classification, "score", 0.0) or 0.0)
                     landmarks = results.multi_hand_landmarks[idx]
-
-                    if classification == "Left":
-                        left_hand = landmarks
-                        box_color = (248, 189, 56)  # Cyan
-                        tag = "LEFT (SIGN)"
+                    if str(getattr(classification, "label", "")).lower() == "left":
+                        left_candidates.append((score, landmarks))
                     else:
-                        right_hand = landmarks
-                        box_color = (34, 197, 94)   # Green
-                        tag = "RIGHT (MOUSE)"
+                        right_candidates.append((score, landmarks))
+
+                left_hand = max(left_candidates, key=lambda item: item[0])[1] if left_candidates else None
+                right_hand = max(right_candidates, key=lambda item: item[0])[1] if right_candidates else None
+
+                for landmarks, box_color, tag in (
+                    (left_hand, (248, 189, 56), "LEFT (SIGN)"),      # Cyan
+                    (right_hand, (34, 197, 94), "RIGHT (MOUSE)"),    # Green
+                ):
+                    if landmarks is None:
+                        continue
 
                     self.mp_draw.draw_landmarks(
                         display_frame,
@@ -229,7 +242,7 @@ class GestureEngine:
                     y_coords = [lm.y * frame_h for lm in landmarks.landmark]
                     bx1, bx2 = max(0, int(min(x_coords) - 10)), min(frame_w, int(max(x_coords) + 10))
                     by1, by2 = max(0, int(min(y_coords) - 10)), min(frame_h, int(max(y_coords) + 10))
-                    
+
                     cv2.rectangle(display_frame, (bx1, by1), (bx2, by2), box_color, 2)
                     cv2.putText(display_frame, tag, (bx1, max(20, by1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, box_color, 2, cv2.LINE_AA)
 

@@ -38,14 +38,50 @@ class Config:
     DWELL_COOLDOWN_SECONDS = 0.5
 
     # Global Right-Hand Vertical Scrolling Parameters.  Coordinates are
-    # MediaPipe-normalized and are deliberately independent of finger poses or
-    # custom-gesture labels.
-    SCROLL_DISPLACEMENT_THRESHOLD = 0.045  # ~22 px in a 480 px camera frame
-    SCROLL_WINDOW_SECONDS = 0.38           # Recent movement window
-    SCROLL_COOLDOWN_SECONDS = 0.42         # Bounded repeat rate between scroll events
-    SCROLL_SMOOTHING = 0.65                # EMA weight for palm-center tracking
-    DEFAULT_SCROLL_AMOUNT = 300            # Medium browser scroll distance (px)
-    SCROLL_MAX_AMOUNT = 520                # Comfortable upper bound for a single event
+    # MediaPipe-normalized and are deliberately independent of custom-gesture
+    # labels.  Scrolling requires a stable OPEN RIGHT HAND plus a clearly
+    # dominant vertical movement; sideways/diagonal travel never scrolls.
+    SCROLL_DISPLACEMENT_THRESHOLD = 0.045  # Shared legacy threshold (intent layer)
+    SCROLL_WINDOW_SECONDS = 0.38           # Retained for the adaptive intent layer
+    SCROLL_COOLDOWN_SECONDS = 0.42         # Retained for the adaptive intent layer
+
+    # Open-palm posture gates (scale-invariant MediaPipe landmark ratios).
+    SCROLL_POSE_MIN_FRAMES = 4             # Stable posture frames before arming
+    SCROLL_POSE_STABILITY_TOLERANCE = 0.28 # Max pose-signature drift between frames
+    # Calibrated against real MediaPipe tracks: open palms measure
+    # wrist->tip 1.38-1.97 and MCP->tip 0.66-1.40, while fists measure
+    # wrist->tip 0.59-1.23 and MCP->tip 0.15-0.34 (palm length == 1.0).
+    SCROLL_POSE_EXTENSION_MARGIN = 1.08    # wrist->tip must exceed wrist->PIP
+    SCROLL_POSE_MIN_EXTENSION_SPAN = 1.30  # wrist->tip minimum (open vs fist)
+    SCROLL_POSE_STRAIGHTNESS_RATIO = 1.60  # MCP->tip must exceed MCP->PIP
+    SCROLL_POSE_MIN_FINGER_LENGTH = 0.55   # MCP->tip minimum (uncurled finger)
+    SCROLL_POSE_MAX_SPREAD_RATIO = 1.25    # Adjacent fingertips stay together
+
+    # Motion gates (normalized units, and seconds).
+    SCROLL_SMOOTHING = 0.45                # EMA weight for palm-center tracking
+    SCROLL_MAX_HISTORY = 24                # Frames kept (~0.8s at 30 FPS)
+    SCROLL_VELOCITY_WINDOW_SECONDS = 0.20  # Window used to measure hand speed
+    SCROLL_MIN_SAMPLES = 3                 # Samples required inside that window
+    SCROLL_MIN_SPEED = 0.22                # Dead-zone: min vertical speed (units/s)
+    SCROLL_VERTICAL_DOMINANCE = 1.5        # |vy| must exceed |vx| * this factor
+    SCROLL_TRIGGER_DISTANCE = 0.035        # Dead-zone travel before a stroke scrolls
+    SCROLL_DIRECTION_FRAMES = 3            # Consecutive frames agreeing on direction
+    SCROLL_DIRECTION_JITTER = 0.004        # Tolerated per-frame counter-movement
+    SCROLL_MAX_FRAME_TRAVEL = 0.22         # Bigger jumps are tracking glitches
+
+    # Smooth, rate-limited emission.  Amounts are px/second x elapsed time so
+    # the browser can ease them; each event stays far below one page jump.
+    SCROLL_MIN_EVENT_INTERVAL = 0.07       # Fastest event rate (~14 events/s)
+    SCROLL_MAX_EVENT_INTERVAL = 0.15       # Elapsed cap after a pause
+    SCROLL_MAX_AMOUNT = 220                # Hard upper bound for a single event
+    SCROLL_SPEED_MIN_PX_PER_SEC = 240.0    # Slowest continuous scroll speed
+    SCROLL_SPEED_GAIN = 700.0              # Extra px/s per normalized unit/s
+    SCROLL_MAX_SPEED_PX_PER_SEC = 1200.0   # Hard cap for intentional fast sweeps
+    SCROLL_SPEED_FACTOR_LOW = 0.6          # Low scroll-speed multiplier
+    SCROLL_SPEED_FACTOR_MEDIUM = 1.0       # Medium scroll-speed multiplier
+    SCROLL_SPEED_FACTOR_HIGH = 1.45        # High scroll-speed multiplier
+
+    DEFAULT_SCROLL_AMOUNT = 300            # Single OS scroll step (legacy mappings)
     HAND_SCROLL_EVENT_BUFFER_SIZE = 80     # Small, in-memory browser event relay
 
     # Right-Fist Confirmation Debounce Settings
