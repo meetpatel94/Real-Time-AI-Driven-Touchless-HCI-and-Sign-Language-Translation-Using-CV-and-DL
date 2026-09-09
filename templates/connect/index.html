@@ -48,7 +48,14 @@
                 <h3>Create Room <span class="connect-role-tag">User 1 · Creator</span></h3>
                 <p>Create the private room. Your browser becomes <strong>User 1</strong> and you can
                 gesture as soon as your local camera is enabled.</p>
+                <label class="connect-field-label" for="create-display-name">Display Name</label>
+                <input id="create-display-name" class="connect-lobby-input" type="text" maxlength="40"
+                       autocomplete="name" placeholder="Your name" required>
+                <label class="connect-field-label" for="create-room-password">Room Password</label>
+                <input id="create-room-password" class="connect-lobby-input" type="password" maxlength="128"
+                       minlength="4" autocomplete="new-password" placeholder="Choose a password" required>
                 <button id="btn-create-room" class="btn-toggle connect-primary" type="button">+ Create Room</button>
+                <p id="create-error" class="connect-error-text" hidden></p>
                 <div id="created-room-box" class="connect-created-room" hidden>
                     <span class="connect-created-label">Room Code · User 1</span>
                     <div class="connect-code-row">
@@ -66,14 +73,18 @@
             <div class="card connect-lobby-card">
                 <div class="connect-lobby-icon">🚪</div>
                 <h3>Join Room <span class="connect-role-tag">User 2 · Joiner</span></h3>
-                <p>Enter the room code you received. Your browser becomes <strong>User 2</strong> with
-                its own independent camera and recognition.</p>
-                <label class="connect-join-label" for="join-room-input">Room Code</label>
-                <div class="connect-join-form">
-                    <input id="join-room-input" type="text" maxlength="8" autocomplete="off"
-                           placeholder="GF-XXXX" spellcheck="false" autocorrect="off" autocapitalize="characters">
-                    <button id="btn-join-room" class="btn-toggle connect-primary" type="button">Join Room</button>
-                </div>
+                <p>Enter the room code and password you received. Your browser becomes
+                <strong>User 2</strong> with its own independent camera and recognition.</p>
+                <label class="connect-field-label" for="join-display-name">Your Name</label>
+                <input id="join-display-name" class="connect-lobby-input" type="text" maxlength="40"
+                       autocomplete="name" placeholder="Your name" required>
+                <label class="connect-field-label" for="join-room-input">Room Code</label>
+                <input id="join-room-input" class="connect-lobby-input" type="text" maxlength="8" autocomplete="off"
+                       placeholder="GF-XXXX" spellcheck="false" autocorrect="off" autocapitalize="characters" required>
+                <label class="connect-field-label" for="join-room-password">Room Password</label>
+                <input id="join-room-password" class="connect-lobby-input" type="password" maxlength="128"
+                       minlength="4" autocomplete="new-password" placeholder="Room password" required>
+                <button id="btn-join-room" class="btn-toggle connect-primary" type="button">Join Room</button>
                 <p id="join-error" class="connect-error-text" hidden></p>
                 <p class="connect-muted">Codes look like <strong>GF-K82M</strong> and are not case-sensitive.</p>
             </div>
@@ -93,12 +104,13 @@
     <section id="room-view" class="connect-room" hidden>
         <div class="card connect-room-bar">
             <div class="connect-room-bar-left">
-                <span class="connect-eyebrow">Private room · User 1 ↔ User 2</span>
+                <span class="connect-eyebrow">PRIVATE ROOM</span>
                 <div class="connect-code-row">
                     <span id="room-code-chip" class="connect-room-code">GF-••••</span>
                     <button id="btn-copy-code-2" class="connect-secondary-btn" type="button" title="Copy room code">📋 Copy Code</button>
                     <span id="conn-pill" class="badge">🟡 Connecting…</span>
                 </div>
+                <div id="room-participants" class="connect-room-participants" aria-live="polite"></div>
             </div>
             <div class="connect-room-bar-right">
                 <span class="connect-room-hint">Creator: User 1 · Joiner: User 2 · both may gesture anytime</span>
@@ -112,7 +124,8 @@
                 <div class="connect-panel-header">
                     <div>
                         <span class="connect-eyebrow">YOU</span>
-                        <h3><span id="you-user-label">User 1</span> <span id="you-role-tag" class="connect-role-tag">Creator</span></h3>
+                        <h3><span id="you-user-label">Your name</span></h3>
+                        <div class="connect-identity-meta"><span id="you-seat-label">User 1</span> <span id="you-role-tag" class="connect-role-tag">Creator</span></div>
                     </div>
                     <span id="you-session-badge" class="badge">🟡 Connecting…</span>
                 </div>
@@ -164,7 +177,8 @@
                 <div class="connect-panel-header">
                     <div>
                         <span class="connect-eyebrow">OTHER USER</span>
-                        <h3><span id="other-user-label">User 2</span> <span id="other-role-tag" class="connect-role-tag">Joiner</span></h3>
+                        <h3><span id="other-user-label">Waiting for participant</span></h3>
+                        <div class="connect-identity-meta"><span id="other-seat-label">User 2</span> <span id="other-role-tag" class="connect-role-tag">Joiner</span></div>
                     </div>
                     <span id="other-conn-pill" class="badge badge-danger">🔴 Disconnected</span>
                 </div>

@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, render_template, request
 from config import Config
 from core.connect.pose_dictionary import BUILTIN_GESTURE_DICTIONARY
 from core.custom_gestures.service import custom_gesture_service
+from services.connect_room_service import connect_room_service
 from services.state_service import global_state
 
 connect_bp = Blueprint("connect", __name__)
@@ -45,6 +46,89 @@ def connect_health():
             "ws_path": Config.CONNECT_WS_PATH,
         }
     )
+
+
+def _connect_json_body():
+    body = request.get_json(silent=True)
+    if isinstance(body, dict):
+        return body
+    # JSON is what the Connect page uses, but accepting form data keeps the
+    # small room API easy to exercise without changing the WebSocket relay.
+    return request.form.to_dict()
+
+
+def _connect_result_response(result):
+    """Return a JSON room API result without ever adding credentials."""
+    status = 200 if result.get("success") else 400
+    if result.get("error") == "invalid_room":
+        status = 404
+    elif result.get("error") == "room_full":
+        status = 409
+    elif result.get("error") in {"authentication_failed", "invalid_session"}:
+        status = 401
+    response = jsonify(result)
+    response.headers["Cache-Control"] = "no-store"
+    return response, status
+
+
+@connect_bp.route("/api/connect/room/create", methods=["POST"])
+@connect_bp.route("/api/connect/create", methods=["POST"])
+@connect_bp.route("/api/connect/rooms", methods=["POST"])
+def create_connect_room():
+    """Create a password-protected in-memory Connect room.
+
+    Password authentication is intentionally an HTTP step.  The response
+    contains only an opaque WebSocket session token and public participant
+    identity; the password and its hash never leave the service.
+    """
+    body = _connect_json_body()
+    result = connect_room_service.create_room(
+        body.get("display_name", body.get("name")),
+        body.get("password", body.get("room_password")),
+        body.get("client_id"),
+    )
+    return _connect_result_response(result)
+
+
+@connect_bp.route("/api/connect/room/join", methods=["POST"])
+@connect_bp.route("/api/connect/join", methods=["POST"])
+def join_connect_room():
+    """Authenticate a joiner without putting the room password on WebSocket."""
+    body = _connect_json_body()
+    result = connect_room_service.join_room(
+        body.get("code", body.get("room_code")),
+        body.get("display_name", body.get("name")),
+        body.get("password", body.get("room_password")),
+        body.get("client_id"),
+    )
+    return _connect_result_response(result)
+
+
+@connect_bp.route("/api/connect/rooms/<code>/join", methods=["POST"])
+def join_connect_room_by_code(code):
+    """Convenience alias that takes the room code in the path."""
+    body = _connect_json_body()
+    result = connect_room_service.join_room(
+        code,
+        body.get("display_name", body.get("name")),
+        body.get("password", body.get("room_password")),
+        body.get("client_id"),
+    )
+    return _connect_result_response(result)
+
+
+@connect_bp.route("/api/connect/room/<code>", methods=["GET"])
+@connect_bp.route("/api/connect/room/<code>/status", methods=["GET"])
+@connect_bp.route("/api/connect/rooms/<code>/status", methods=["GET"])
+@connect_bp.route("/api/connect/rooms/<code>", methods=["GET"])
+def connect_room_status(code):
+    """Return safe authenticated room state; never return password material."""
+    result = connect_room_service.room_status(
+        code,
+        request.headers.get("X-Connect-Client-ID"),
+        request.headers.get("X-Connect-Session-Token"),
+    )
+    return _connect_result_response(result)
 
 
 @connect_bp.route("/api/connect/mappings", methods=["GET"])
