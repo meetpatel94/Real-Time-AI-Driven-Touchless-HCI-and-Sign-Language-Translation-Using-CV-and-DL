@@ -1,4 +1,4 @@
-import pyautogui
+from core.mouse.pyautogui_compat import pyautogui
 from services.logging_service import logger
 
 pyautogui.PAUSE = 0.0

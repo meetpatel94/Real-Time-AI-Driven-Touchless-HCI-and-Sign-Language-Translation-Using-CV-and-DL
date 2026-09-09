@@ -1,6 +1,7 @@
-import pyautogui
 from typing import Tuple
+
 from config import Config
+from core.mouse.pyautogui_compat import pyautogui
 
 class CursorMapper:
     """Maps normalized MediaPipe coordinates to physical screen coordinates with sensitivity scaling."""

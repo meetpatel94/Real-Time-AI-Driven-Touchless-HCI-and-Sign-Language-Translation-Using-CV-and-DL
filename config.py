@@ -179,3 +179,27 @@ class Config:
     PERSONALIZATION_MAX_CALIBRATION_SAMPLES = 20
     PERSONALIZATION_LATEST_OBSERVATION_TTL_SECONDS = 8.0
     PERSONALIZATION_ACTION_COOLDOWN_SECONDS = 0.80
+
+    # ------------------------------------------------------------------
+    # Connect — isolated two-person gesture communication rooms.
+    # Only the /connect page activates room WebSockets, gesture sending and
+    # gesture relaying. No conversation payloads are persisted to disk.
+    # ------------------------------------------------------------------
+    CONNECT_WS_PATH = "/ws/connect"
+    CONNECT_ROOM_CODE_PREFIX = "GF"
+    CONNECT_ROOM_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    CONNECT_ROOM_CODE_LENGTH = 4
+    CONNECT_ROOM_MAX_PARTICIPANTS = 2
+    CONNECT_ROOM_HISTORY_LIMIT = 80          # Ephemeral in-memory catch-up
+    CONNECT_ROOM_IDLE_TTL_SECONDS = 1800     # Purge after 30 min w/o clients
+    CONNECT_ROOM_MAX_AGE_SECONDS = 86400     # Hard 24h room lifetime
+    CONNECT_ROOM_SWEEP_INTERVAL_SECONDS = 60
+    # A gesture must stay stable for this long before it is sent once.
+    # Changing or dropping the hand before the hold cancels the send, which
+    # prevents the same gesture from being sent on every camera frame.
+    CONNECT_GESTURE_HOLD_SECONDS = 2.0
+    CONNECT_GESTURE_MIN_STABLE_FRAMES = 4
+    CONNECT_CUSTOM_GESTURE_STABLE_FRAMES = 3
+    CONNECT_POSE_TRACKING_MIN_QUALITY = 0.90
+    CONNECT_LOCAL_PROGRESS_INTERVAL = 0.10   # Local status push throttle (s)
+

@@ -17,6 +17,7 @@ from core.recognition.inference_worker import inference_worker
 from core.recognition.recognition_state import recognition_state
 from core.custom_gestures.service import custom_gesture_service
 from services.adaptive_intent_service import adaptive_intent_service
+from services.connect_room_service import connect_room_service
 from services.interaction_history_service import interaction_history_service
 from services.logging_service import logger
 from services.personalization_service import personalization_service
@@ -171,6 +172,7 @@ class GestureEngine:
                 recognition_state.set_hand_presence(False, False)
                 recognition_state.process_right_hand_fist(False)
                 custom_gesture_service.notify_camera_off()
+                connect_room_service.notify_camera_off()
                 if self._adaptive_camera_active:
                     self.reset_adaptive_state()
                     self._adaptive_camera_active = False
@@ -186,6 +188,7 @@ class GestureEngine:
                 # A disconnected/unopened camera is also a stream interruption;
                 # do not let its last pose remain eligible for calibration.
                 custom_gesture_service.notify_camera_off()
+                connect_room_service.notify_camera_off()
                 if self._adaptive_camera_active:
                     self.reset_adaptive_state()
                     self._adaptive_camera_active = False
@@ -257,6 +260,22 @@ class GestureEngine:
                 # A-Z recognition, mouse, translation or adaptive pipelines.
                 if not self._adaptive_error_logged:
                     logger.warning(f"Custom gesture frame processing skipped: {exc}")
+                    self._adaptive_error_logged = True
+
+            # --------------------------------------------------
+            # CONNECT ROOM RELAY (only while /connect is the active module)
+            # --------------------------------------------------
+            # Reuses the exact same MediaPipe landmarks as every other section;
+            # no second camera pipeline. Recognition only produces events while
+            # a Connect room exists and its seat holder is connected, so the
+            # other modules never see Connect processing (and vice versa).
+            try:
+                connect_room_service.on_engine_frame(
+                    left_hand, right_hand, connect_active=(active_mod == "connect")
+                )
+            except Exception as exc:
+                if not self._adaptive_error_logged:
+                    logger.warning(f"Connect frame processing skipped: {exc}")
                     self._adaptive_error_logged = True
 
             # --------------------------------------------------

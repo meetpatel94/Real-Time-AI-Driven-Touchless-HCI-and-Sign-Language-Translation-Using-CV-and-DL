@@ -23,6 +23,7 @@ def create_app():
     from routes.custom_gesture_routes import custom_gesture_bp
     from routes.adaptive_routes import adaptive_bp
     from routes.personalization_routes import personalization_bp
+    from routes.connect_routes import connect_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(camera_bp)
@@ -36,6 +37,13 @@ def create_app():
     app.register_blueprint(custom_gesture_bp)
     app.register_blueprint(adaptive_bp)
     app.register_blueprint(personalization_bp)
+    app.register_blueprint(connect_bp)
+
+    # Connect real-time relay: WebSocket endpoint on the same dev-server port.
+    from flask_sock import Sock
+    sock = Sock(app)
+    from routes.connect_socket import register_connect_socket
+    register_connect_socket(sock)
 
     # Initialize Gesture Engine thread
     gesture_engine.start()
