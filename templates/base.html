@@ -10,11 +10,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/Hide.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/adaptive.css') }}">
     {% block extra_css %}{% endblock %}
+    <!-- Loaded last so shared responsive rules can safely adapt every module. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
 <body>
     <div id="app-container">
+        <!-- MOBILE NAVIGATION SCRIM -->
+        <div id="mobile-nav-scrim" aria-hidden="true"></div>
+
         <!-- COLLAPSIBLE LEFT SIDEBAR -->
-        <aside id="sidebar">
+        <aside id="sidebar" aria-label="Primary navigation">
             <div>
                 <div class="brand-header">
                     <button id="sidebar-toggle" class="btn-hamburger" title="Toggle Sidebar">☰</button>
@@ -123,8 +128,11 @@
         <!-- MAIN CONTENT AREA -->
         <div id="main-wrapper">
             <header id="header">
-                <h2>{% block page_title %}Dashboard{% endblock %}</h2>
-                <div style="display: flex; gap: 1rem; align-items: center;">
+                <div class="header-title-area">
+                    <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">☰ <span>Menu</span></button>
+                    <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+                </div>
+                <div class="header-status" style="display: flex; gap: 1rem; align-items: center;">
                     <div id="dwell-container" style="display: flex; align-items: center; gap: 0.5rem; opacity: 0; transition: opacity 0.2s;">
                         <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-blue);">DWELL:</span>
                         <div style="width: 100px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">
