@@ -265,10 +265,10 @@ class GestureEngine:
             # --------------------------------------------------
             # CONNECT ROOM RELAY (only while /connect is the active module)
             # --------------------------------------------------
-            # Reuses the exact same MediaPipe landmarks as every other section;
-            # no second camera pipeline. Recognition only produces events while
-            # a Connect room exists and its seat holder is connected, so the
-            # other modules never see Connect processing (and vice versa).
+            # The optional server-camera fallback reuses the exact same
+            # MediaPipe landmarks as every other section; it never opens a
+            # second server camera pipeline. Browser-local Connect streams are
+            # independent and publish only recognized events over WebSocket.
             try:
                 connect_room_service.on_engine_frame(
                     left_hand, right_hand, connect_active=(active_mod == "connect")

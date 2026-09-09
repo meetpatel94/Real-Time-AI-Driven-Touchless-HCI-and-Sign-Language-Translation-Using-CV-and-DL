@@ -25,8 +25,9 @@ def connect_page():
 def gesture_mappings():
     """Cached client-side mapping table (built-ins + saved custom gestures).
 
-    Only gesture ids/meanings are exposed; no camera data ever leaves the
-    recognition loop through this API.
+    Built-ins expose their meanings and saved custom gestures expose the
+    existing derived feature vectors needed for browser-local matching. No
+    camera frame, image, or continuous landmark stream leaves recognition.
     """
     builtins = [
         {
@@ -40,17 +41,49 @@ def gesture_mappings():
     ]
     customs = []
     try:
+        # Connect reuses the Custom Gestures library's stored feature vectors
+        # for browser-local matching. These are derived representations of
+        # saved samples, not webcam frames or a second gesture database/model.
+        # Keep the access read-only and scoped to this endpoint so the existing
+        # Custom Gestures workflow remains the source of truth.
+        cached = custom_gesture_service._load_cache()  # noqa: SLF001 - Connect read-only adapter
         for gesture in custom_gesture_service.list_gestures():
             sample_count = int(gesture.get("sample_count", 0) or 0)
+            gesture_id = gesture.get("gesture_id", "")
+            cached_gesture = cached.get(gesture_id, {}) if isinstance(cached, dict) else {}
+            prototype = cached_gesture.get("prototype", [])
+            sample_features = cached_gesture.get("sample_features", [])
+            variation_features = cached_gesture.get("variation_features", [])
+            if not isinstance(prototype, list):
+                prototype = []
+            if not isinstance(sample_features, list):
+                sample_features = []
+            if not isinstance(variation_features, list):
+                variation_features = []
+            ready = (
+                bool(gesture.get("enabled", True))
+                and sample_count >= int(gesture.get("target_samples", 1) or 1)
+                and bool(prototype or sample_features)
+            )
             customs.append({
                 "kind": "custom",
-                "gesture_id": gesture.get("gesture_id", ""),
+                "gesture_id": gesture_id,
                 "gesture_name": gesture.get("gesture_name", ""),
                 "description": gesture.get("description", ""),
                 "hand": gesture.get("hand", "either"),
                 "sample_count": sample_count,
                 "enabled": bool(gesture.get("enabled", True)),
                 "has_replay": sample_count > 0,
+                "ready": ready,
+                # These are existing normalized feature vectors only. Never
+                # include raw or continuous landmarks in a WebSocket message.
+                "prototype": prototype if ready else [],
+                "sample_features": sample_features[:120] if ready else [],
+                "variation_features": variation_features[:40] if ready else [],
+                "similarity_threshold": float(
+                    cached_gesture.get("similarity_threshold", getattr(custom_gesture_service, "similarity_threshold", 0.85))
+                    or 0.85
+                ),
             })
     except Exception as exc:  # pragma: no cover - fail open for UI mapping
         from services.logging_service import logger
@@ -61,6 +94,14 @@ def gesture_mappings():
         "ws_path": Config.CONNECT_WS_PATH,
         "builtins": builtins,
         "customs": customs,
+        "local_recognition": {
+            "hold_seconds": float(getattr(Config, "CONNECT_GESTURE_HOLD_SECONDS", 2.0)),
+            "min_stable_frames": int(getattr(Config, "CONNECT_GESTURE_MIN_STABLE_FRAMES", 4)),
+            "custom_stable_frames": int(getattr(Config, "CONNECT_CUSTOM_GESTURE_STABLE_FRAMES", 3)),
+            "pose_min_quality": float(getattr(Config, "CONNECT_POSE_TRACKING_MIN_QUALITY", 0.90)),
+            "custom_min_quality": float(getattr(custom_gesture_service, "min_tracking_quality", 0.90)),
+            "custom_max_match_distance": float(getattr(custom_gesture_service, "max_match_distance", 0.45)),
+        },
     })
 
 

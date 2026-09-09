@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Connect — GestureForge AI{% endblock %}
-{% block page_title %}🤝 Connect — Real-Time Gesture Rooms{% endblock %}
+{% block page_title %}🤝 Connect — Two-Way Gesture Rooms{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
@@ -13,32 +13,31 @@
     <section id="lobby-view" class="connect-lobby">
         <div class="card connect-intro-card">
             <div class="connect-intro-copy">
-                <span class="connect-eyebrow">Two-person gesture communication</span>
-                <h3>Talk with gestures in a private room</h3>
+                <span class="connect-eyebrow">User 1 ↔ User 2</span>
+                <h3>Communicate with gestures in a private room</h3>
                 <p>
-                    One person creates a room (e.g. <strong>GF-K82M</strong>), the other joins with that code,
-                    and every recognized gesture is relayed instantly. Gesture recognition runs locally in
-                    this app's existing camera pipeline — only lightweight gesture/text events travel over
-                    WebSocket, never webcam video.
+                    The creator is <strong>User 1</strong> and the joiner is <strong>User 2</strong>.
+                    Both devices use their own camera and recognize gestures locally at the same time.
+                    Only recognized gesture meanings and text travel over WebSocket — never webcam video
+                    or landmarks.
                 </p>
             </div>
             <div class="connect-privacy-note">
                 <span>🔒</span>
                 <div>
                     <strong>Private by design</strong>
-                    <small>Rooms support exactly two participants. No video is uploaded or stored, and
-                    conversations stay in memory for the session only.</small>
+                    <small>Rooms support exactly two participants. Each camera stays on its own device;
+                    conversation history is kept in memory for the session only.</small>
                 </div>
             </div>
         </div>
 
-        <!-- LAN / two-device help (local testing only) -->
         <div class="connect-lan-help" role="note">
             <span class="connect-lan-help-icon" aria-hidden="true">📶</span>
             <div>
                 <strong>Connect another device</strong>
-                <p>To connect another device, open this same address using your computer's LAN IP while both devices
-                are connected to the same Wi-Fi.</p>
+                <p>Open this same address on the PC and phone. Allow camera access on each device;
+                both users can recognize and send gestures without pausing the other user.</p>
             </div>
         </div>
 
@@ -46,17 +45,18 @@
             <!-- CREATE -->
             <div class="card connect-lobby-card">
                 <div class="connect-lobby-icon">📡</div>
-                <h3>Create Room</h3>
-                <p>Start a private room and receive a short code to share with the other person.</p>
+                <h3>Create Room <span class="connect-role-tag">User 1 · Creator</span></h3>
+                <p>Create the private room. Your browser becomes <strong>User 1</strong> and you can
+                gesture as soon as your local camera is enabled.</p>
                 <button id="btn-create-room" class="btn-toggle connect-primary" type="button">+ Create Room</button>
                 <div id="created-room-box" class="connect-created-room" hidden>
-                    <span class="connect-created-label">Room Code</span>
+                    <span class="connect-created-label">Room Code · User 1</span>
                     <div class="connect-code-row">
                         <span id="room-code-output" class="connect-room-code">GF-••••</span>
                         <button id="btn-copy-code" class="connect-secondary-btn" type="button">📋 Copy Code</button>
                     </div>
-                    <p class="connect-muted">Share this code with the other person. Gesture sending switches on
-                    automatically for you — hold a pose for 2 seconds to send it once.</p>
+                    <p class="connect-muted">Share this code with User 2. Both participants can send
+                    gestures and text at any time.</p>
                 </div>
             </div>
 
@@ -65,8 +65,9 @@
             <!-- JOIN -->
             <div class="card connect-lobby-card">
                 <div class="connect-lobby-icon">🚪</div>
-                <h3>Join Room</h3>
-                <p>Enter the room code you received to communicate with the creator.</p>
+                <h3>Join Room <span class="connect-role-tag">User 2 · Joiner</span></h3>
+                <p>Enter the room code you received. Your browser becomes <strong>User 2</strong> with
+                its own independent camera and recognition.</p>
                 <label class="connect-join-label" for="join-room-input">Room Code</label>
                 <div class="connect-join-form">
                     <input id="join-room-input" type="text" maxlength="8" autocomplete="off"
@@ -81,8 +82,9 @@
         <div class="card connect-legend-card">
             <span class="connect-eyebrow">Gesture dictionary</span>
             <h3>Recognized gestures</h3>
-            <p class="connect-muted">Saved custom gestures are matched first — teach your own “☝️ → Hii” style mapping in
-            <a href="{{ url_for('custom_gestures.custom_gestures_page') }}">Custom Gestures</a> and it will be used here automatically.</p>
+            <p class="connect-muted">Saved custom gestures are matched first — teach your own mapping in
+            <a href="{{ url_for('custom_gestures.custom_gestures_page') }}">Custom Gestures</a> and it will
+            be used by both local Connect recognizers.</p>
             <div id="connect-legend-chips" class="connect-chip-row"><!-- JS --></div>
         </div>
     </section>
@@ -91,7 +93,7 @@
     <section id="room-view" class="connect-room" hidden>
         <div class="card connect-room-bar">
             <div class="connect-room-bar-left">
-                <span class="connect-eyebrow">Private room</span>
+                <span class="connect-eyebrow">Private room · User 1 ↔ User 2</span>
                 <div class="connect-code-row">
                     <span id="room-code-chip" class="connect-room-code">GF-••••</span>
                     <button id="btn-copy-code-2" class="connect-secondary-btn" type="button" title="Copy room code">📋 Copy Code</button>
@@ -99,7 +101,7 @@
                 </div>
             </div>
             <div class="connect-room-bar-right">
-                <span class="connect-room-hint">Share this code with one person · exactly 2 participants</span>
+                <span class="connect-room-hint">Creator: User 1 · Joiner: User 2 · both may gesture anytime</span>
                 <button id="btn-leave-room" class="connect-danger-btn" type="button">✕ Leave Room</button>
             </div>
         </div>
@@ -109,17 +111,22 @@
             <div class="card connect-panel">
                 <div class="connect-panel-header">
                     <div>
-                        <span class="connect-eyebrow">Local camera</span>
-                        <h3>You <span id="you-role-tag" class="connect-role-tag"></span></h3>
+                        <span class="connect-eyebrow">YOU</span>
+                        <h3><span id="you-user-label">User 1</span> <span id="you-role-tag" class="connect-role-tag">Creator</span></h3>
                     </div>
                     <span id="you-session-badge" class="badge">🟡 Connecting…</span>
                 </div>
 
                 <div class="feed-container connect-feed">
-                    <img id="video-feed-connect" src="{{ url_for('camera.video_feed') }}" alt="Camera Stream">
+                    <video id="connect-local-video" class="connect-local-video" autoplay muted playsinline></video>
+                    <div id="connect-camera-placeholder" class="connect-camera-placeholder">
+                        <span>📷</span>
+                        <strong>Your camera is local to this device</strong>
+                        <small>Turn it on below to recognize gestures.</small>
+                    </div>
                     <div class="connect-feed-overlay">
-                        <span id="you-cam-badge" class="badge badge-danger">CAMERA OFF</span>
-                        <span id="you-send-badge" class="badge">SENDING OFF</span>
+                        <span id="you-cam-badge" class="badge badge-danger">🔴 CAMERA OFF</span>
+                        <span id="you-recognition-badge" class="badge">⚪ RECOGNITION OFF</span>
                     </div>
                 </div>
 
@@ -127,11 +134,15 @@
                     <div class="connect-detection-main">
                         <span class="connect-detection-symbol" id="you-symbol">✋</span>
                         <div>
-                            <div class="connect-detection-state" id="you-state-text">Waiting for the other user…</div>
+                            <div class="connect-detection-state" id="you-state-text">Camera is off — turn it on to send gestures</div>
                             <div class="connect-detected-row" id="you-detected-row">
                                 <span>Detected:</span>
                                 <strong id="you-detected-value">—</strong>
                                 <span id="you-conf" class="connect-muted"></span>
+                            </div>
+                            <div class="connect-detected-row">
+                                <span>Meaning:</span>
+                                <strong id="you-meaning-value">—</strong>
                             </div>
                         </div>
                     </div>
@@ -143,29 +154,32 @@
 
                 <div class="connect-actions">
                     <button id="btn-camera-local" class="btn-toggle connect-action-btn" type="button">📷 Turn Camera ON</button>
-                    <button id="btn-send-toggle" class="btn-toggle connect-action-btn" type="button" disabled>✋ Gesture Sending: OFF</button>
                 </div>
-                <p class="connect-muted connect-actions-note">Gesture recognition uses the app's existing camera pipeline. Only the seat
-                holder's recognized gestures are relayed, so take turns showing gestures.</p>
+                <p class="connect-muted connect-actions-note">Camera and recognition run locally on your device.
+                The other participant receives only the recognized gesture and meaning.</p>
             </div>
 
             <!-- ===== OTHER USER ===== -->
             <div class="card connect-panel">
                 <div class="connect-panel-header">
                     <div>
-                        <span class="connect-eyebrow">Remote participant</span>
-                        <h3>Other User <span id="other-name-tag" class="connect-role-tag"></span></h3>
+                        <span class="connect-eyebrow">OTHER USER</span>
+                        <h3><span id="other-user-label">User 2</span> <span id="other-role-tag" class="connect-role-tag">Joiner</span></h3>
                     </div>
                     <span id="other-conn-pill" class="badge badge-danger">🔴 Disconnected</span>
                 </div>
 
                 <div id="other-waiting" class="connect-waiting">
-                    <span class="connect-waiting-icon">👋</span>
-                    <p>Waiting for the other user to join…</p>
-                    <p class="connect-muted" id="other-waiting-tip">Share your room code so they can join.</p>
+                    <span class="connect-waiting-icon">🤝</span>
+                    <p id="other-presence-text">Room is ready for the other participant.</p>
+                    <p class="connect-muted" id="other-waiting-tip">Share the room code so User 2 can join.</p>
                 </div>
 
                 <div id="other-gesture-box" class="connect-other-gesture" hidden>
+                    <div class="connect-other-status-row">
+                        <span id="other-camera-badge" class="badge">⚪ CAMERA UNKNOWN</span>
+                        <span id="other-recognition-badge" class="badge">⚪ RECOGNITION UNKNOWN</span>
+                    </div>
                     <span class="connect-eyebrow">Last Gesture</span>
                     <div class="connect-other-main">
                         <span id="other-symbol" class="connect-other-symbol">—</span>
@@ -185,12 +199,12 @@
             <div class="connect-timeline-head">
                 <div>
                     <span class="connect-eyebrow">Session communication</span>
-                    <h3>Timeline</h3>
+                    <h3>Timeline · both users</h3>
                 </div>
                 <span id="timeline-count" class="connect-muted">0 messages</span>
             </div>
             <div id="connect-timeline" class="connect-timeline">
-                <div id="timeline-empty" class="connect-empty-state">No messages yet — send a gesture or type a message.</div>
+                <div id="timeline-empty" class="connect-empty-state">No messages yet — either user can send a gesture or text.</div>
             </div>
             <form id="chat-form" class="connect-chat-form" autocomplete="off">
                 <input id="chat-input" type="text" maxlength="600" placeholder="Type a message…" aria-label="Chat message">
@@ -218,5 +232,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Connect's local recognizer uses the same MediaPipe Hands technology without
+     sending frames or landmarks to the room relay. -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="{{ url_for('static', filename='js/connect/connect.js') }}"></script>
 {% endblock %}
