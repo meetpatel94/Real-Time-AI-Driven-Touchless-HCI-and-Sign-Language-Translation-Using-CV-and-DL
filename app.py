@@ -65,38 +65,28 @@ app = create_app()
 if __name__ == "__main__":
     # Bind to 0.0.0.0 (not only 127.0.0.1) so other devices on the same Wi-Fi
     # can reach the same Flask + WebSocket server — e.g. a phone opening
-    # http://192.168.1.105:5000/connect next to the PC running this file.
+    # https://192.168.1.105:5000/connect next to the PC running this file.
     # This is the Flask development server for LOCAL LAN testing only; it is
     # not a production deployment and must not be exposed to the internet.
+    #
+    # HTTPS is required here (not just "nice to have"): mobile browsers only
+    # allow navigator.mediaDevices.getUserMedia() (camera access) from a
+    # secure context. https://127.0.0.1 is secure, but a plain
+    # http://192.168.x.x LAN address is not, which is why a phone opening the
+    # HTTP LAN URL sees "This browser does not provide a local camera." while
+    # the PC (using 127.0.0.1) works. See services/dev_tls.py for the
+    # certificate resolution/fallback logic.
+    from services.dev_tls import resolve_ssl_context, print_startup_banner, detect_lan_ip
+
     HOST = "0.0.0.0"
     PORT = 5000
 
-    def _lan_connect_url():
-        """Best-effort LAN URL for the Connect two-device test."""
-        import socket
-        candidates = []
-        try:
-            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            # No packets are sent; connect() only picks a route for the IP.
-            probe.connect(("8.8.8.8", 80))
-            candidates.append(probe.getsockname()[0])
-            probe.close()
-        except Exception:
-            pass
-        try:
-            for address in socket.gethostbyname_ex(socket.gethostname())[2]:
-                if address.startswith(("192.168.", "10.", "172.")):
-                    candidates.append(address)
-        except Exception:
-            pass
-        for address in candidates:
-            if not address.startswith("127."):
-                return f"http://{address}:{PORT}/connect"
-        return None
+    lan_ip = detect_lan_ip()
+    ssl_context, mode, detail = resolve_ssl_context(lan_ip)
+    print_startup_banner(HOST, PORT, mode, detail, lan_ip)
 
-    lan_url = _lan_connect_url()
-    if lan_url:
-        print(f"* GestureForge Connect (two-device LAN test): {lan_url}")
-        print("* Open that address on the PC and on the phone (same Wi-Fi) to test rooms.")
+    run_kwargs = dict(host=HOST, port=PORT, debug=True, use_reloader=False)
+    if ssl_context is not None:
+        run_kwargs["ssl_context"] = ssl_context
 
-    app.run(host=HOST, port=PORT, debug=True, use_reloader=False)
+    app.run(**run_kwargs)
