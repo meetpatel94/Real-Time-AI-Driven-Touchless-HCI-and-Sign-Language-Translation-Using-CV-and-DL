@@ -65,18 +65,22 @@ app = create_app()
 if __name__ == "__main__":
     # Bind to 0.0.0.0 (not only 127.0.0.1) so other devices on the same Wi-Fi
     # can reach the same Flask + WebSocket server — e.g. a phone opening
-    # http://192.168.1.105:5000/connect next to the PC running this file.
+    # https://192.168.29.98:5000/connect next to the PC running this file.
     # This is the Flask development server for LOCAL LAN testing only; it is
     # not a production deployment and must not be exposed to the internet.
     #
-    # Transport: plain HTTP on 0.0.0.0 by default, so http://127.0.0.1:5000
-    # and http://<LAN-IP>:5000 behave identically (a TLS-only port would make
-    # every http:// LAN URL unreachable while localhost "works" only because
-    # browsers transparently upgrade it to HTTPS). HTTPS is opt-in for the
-    # phone-camera step (mobile browsers need a secure context for
-    # getUserMedia): either place a certificate pair in certs/ (see
-    # services/dev_tls.py and certs/README.md) or set
-    # GESTUREFORGE_FORCE_HTTPS=1 for an ad-hoc self-signed certificate.
+    # Transport (see services/dev_tls.py for the full policy):
+    # * If the development certificate pair exists in certs/
+    #   (gestureforge-lan-cert.pem + gestureforge-lan-key.pem, generated with
+    #   mkcert via scripts/generate_lan_certificate.py), the server starts
+    #   with HTTPS AUTOMATICALLY — https://127.0.0.1:5000 and
+    #   https://<LAN-IP>:5000 — which is what the phone camera step needs
+    #   (mobile browsers require a secure context for getUserMedia).
+    # * Without certificate files the server stays on plain HTTP
+    #   0.0.0.0:5000, so normal desktop development
+    #   (http://127.0.0.1:5000) keeps working unchanged.
+    # No certificates are generated inside Python and no ad-hoc SSL is used
+    # for LAN camera testing.
     from services.dev_tls import resolve_ssl_context, print_startup_banner, detect_lan_ip
 
     HOST = "0.0.0.0"
