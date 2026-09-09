@@ -131,6 +131,38 @@ MediaPipe recognition:
   (`flask-sock==0.7.0` added to `requirements.txt`); no polling is used for
   communication.
 
+### Running the two-device LAN test (PC + phone on the same Wi-Fi)
+
+The dev server is a local-only Flask server; it binds `0.0.0.0` so other
+devices on your LAN can reach it (do **not** expose it beyond your LAN):
+
+1. Install dependencies and start the server on the PC:
+
+   ```bash
+   pip install -r requirements.txt
+   python app.py
+   ```
+
+   The startup log prints the LAN URL (e.g. `http://192.168.1.105:5000/connect`).
+   If it does not, find the PC's LAN IP with `ipconfig` (Windows) or
+   `ip addr` (Linux/macOS) and use `http://<LAN-IP>:5000/connect`.
+
+2. **Device A (PC):** open `http://<LAN-IP>:5000/connect` → **Create Room**
+   and note the code shown (e.g. `GF-DH6G`) → **📋 Copy Code**.
+
+3. **Device B (phone):** on the same Wi-Fi, open the *same*
+   `http://<LAN-IP>:5000/connect` → enter the room code → **Join Room**.
+
+Both devices talk to the same Flask + WebSocket server: the WebSocket URL is
+built from `window.location` (protocol + host of the opened page), so no
+`127.0.0.1`/`localhost` is hardcoded in the Connect client. Both sides show
+**Other User → Connected**; gestures (seat holder only, take turns) and text
+messages relay in both directions.
+
+Troubleshooting: allow Python through the PC's firewall, keep both devices on
+the same network/subnet, and check that the router does not enable
+AP/client-isolation (which blocks device-to-device traffic).
+
 ### MongoDB configuration
 
 Set `MONGODB_URI` and `MONGODB_DATABASE` in the environment (the conventional `MONGO_URI`, `MONGODB_DB_NAME`, `MONGO_DB_NAME`, or `MONGO_DATABASE` aliases are also accepted). Optional bounded timeout settings are `MONGODB_SERVER_SELECTION_TIMEOUT_MS`, `MONGODB_CONNECT_TIMEOUT_MS`, `MONGODB_SOCKET_TIMEOUT_MS`, and `MONGODB_MAX_POOL_SIZE`. The application lazily pings MongoDB, creates validators/indexes, and reports storage health without making camera startup depend on the server.

@@ -63,4 +63,40 @@ def cleanup():
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    # Bind to 0.0.0.0 (not only 127.0.0.1) so other devices on the same Wi-Fi
+    # can reach the same Flask + WebSocket server — e.g. a phone opening
+    # http://192.168.1.105:5000/connect next to the PC running this file.
+    # This is the Flask development server for LOCAL LAN testing only; it is
+    # not a production deployment and must not be exposed to the internet.
+    HOST = "0.0.0.0"
+    PORT = 5000
+
+    def _lan_connect_url():
+        """Best-effort LAN URL for the Connect two-device test."""
+        import socket
+        candidates = []
+        try:
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # No packets are sent; connect() only picks a route for the IP.
+            probe.connect(("8.8.8.8", 80))
+            candidates.append(probe.getsockname()[0])
+            probe.close()
+        except Exception:
+            pass
+        try:
+            for address in socket.gethostbyname_ex(socket.gethostname())[2]:
+                if address.startswith(("192.168.", "10.", "172.")):
+                    candidates.append(address)
+        except Exception:
+            pass
+        for address in candidates:
+            if not address.startswith("127."):
+                return f"http://{address}:{PORT}/connect"
+        return None
+
+    lan_url = _lan_connect_url()
+    if lan_url:
+        print(f"* GestureForge Connect (two-device LAN test): {lan_url}")
+        print("* Open that address on the PC and on the phone (same Wi-Fi) to test rooms.")
+
+    app.run(host=HOST, port=PORT, debug=True, use_reloader=False)

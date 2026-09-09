@@ -169,7 +169,7 @@
             el.otherNameTag.textContent = '';
             var tip = el.otherWaitingTip;
             tip.textContent = conn.room.role === 'creator'
-                ? 'Share your room code so the other person can join.'
+                ? 'Share your room code so the other person can join. To connect another device, open this same address using your computer\u2019s LAN IP while both devices are connected to the same Wi-Fi.'
                 : 'Waiting for the room creator to come back…';
         }
 
@@ -493,6 +493,12 @@
 
     // ------------------------------------------------------------------
     // WebSocket
+    //
+    // The socket URL is always derived from the address the page itself was
+    // opened with (window.location), so a phone or laptop on the same LAN
+    // that opens http://192.168.x.x:5000/connect talks to the same Flask
+    // server over ws://192.168.x.x:5000/ws/connect. No 127.0.0.1/localhost
+    // is hardcoded anywhere in this client.
     // ------------------------------------------------------------------
     function wsUrl() {
         var proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -887,12 +893,27 @@
         el.legendChips = $('connect-legend-chips');
     }
 
+    // ------------------------------------------------------------------
+    // Mobile / small screens
+    // ------------------------------------------------------------------
+    function fitSmallScreen() {
+        // The app shell uses a fixed desktop sidebar. On phones the Connect
+        // room UI needs that space, so collapse the sidebar to its icon rail
+        // (the same state as pressing ☰) when the viewport is narrow.
+        if (window.innerWidth > 860) return;
+        var sidebar = document.getElementById('sidebar');
+        if (sidebar && !sidebar.classList.contains('collapsed')) {
+            sidebar.classList.add('collapsed');
+        }
+    }
+
     domReady(function () {
         cacheDom();
         bind();
         loadMappings();
         setConnPill('idle');
         conn.clientId = storedClientId();
+        fitSmallScreen();
         maybeAutoResume();
         syncCameraState();
     });
