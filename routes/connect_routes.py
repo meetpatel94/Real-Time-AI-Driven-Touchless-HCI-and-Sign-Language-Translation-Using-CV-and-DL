@@ -5,7 +5,7 @@ WebSocket messaging itself is registered in ``register_connect_socket`` (see
 instance inside the app factory.
 """
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
 from config import Config
 from core.connect.pose_dictionary import BUILTIN_GESTURE_DICTIONARY
@@ -25,16 +25,23 @@ def connect_page():
 def connect_health():
     """Lightweight reachability probe for LAN / two-device Connect testing.
 
-    Reports only whether this server answers on the address the tester used
-    plus the WebSocket path the page will dial (clients derive it from
-    window.location — see static/js/connect/connect.js). It never touches
-    room state, recognition, or any camera logic.
+    Reports only whether this server answers on the address the tester used,
+    which transport (http/https) that request used, and the WebSocket path
+    the page will dial (clients derive it from window.location — see
+    static/js/connect/connect.js). It works over both HTTP and HTTPS and
+    never touches room state, recognition, or any camera logic.
+
+    ``transport`` comes from the request itself: when the dev server runs
+    with the mkcert certificate it answers this probe over TLS, so the
+    value is ``"https"`` and a tester can confirm the secure context that
+    unlocks the phone camera.
     """
     return jsonify(
         {
             "ok": True,
             "status": "healthy",
             "service": "gestureforge-connect",
+            "transport": "https" if request.is_secure else "http",
             "ws_path": Config.CONNECT_WS_PATH,
         }
     )

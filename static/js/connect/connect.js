@@ -863,31 +863,155 @@
         conn.recognitionFrame = requestAnimationFrame(recognitionLoop);
     }
 
-    function startLocalCamera() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            toast('This browser does not provide a local camera.', 'error');
+    // ------------------------------------------------------------------
+    // Camera access — secure-context checks + specific error reporting.
+    //
+    // Browsers only expose getUserMedia on a *secure context*.
+    // https://127.0.0.1 is secure, but a plain http://<LAN-IP> address is
+    // NOT — that is the exact failure behind "This browser does not provide
+    // a local camera." when the phone opens the HTTP LAN URL. So the checks
+    // are ordered deliberately: insecure page first (with the actionable
+    // HTTPS message), then real getUserMedia support, then the camera
+    // request itself with per-error classification.
+    // ------------------------------------------------------------------
+
+    // Front camera is preferred ("user"), never forced: if the ideal
+    // front camera or size is unavailable the constraints relax step by
+    // step until any working camera is found (Android Chrome friendly).
+    var CAMERA_CONSTRAINT_STEPS = [
+        { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+        { video: { facingMode: { ideal: 'user' } }, audio: false },
+        { video: true, audio: false }
+    ];
+
+    var CAMERA_PLACEHOLDER_HINTS = {
+        insecure: 'Open GestureForge using the HTTPS LAN address — the mkcert certificate guide is in the README.',
+        unsupported: 'This browser does not provide a local camera.',
+        default: 'Turn it on below to recognize gestures.'
+    };
+
+    function pageIsSecure() {
+        return !!window.isSecureContext;
+    }
+
+    function hasGetUserMedia() {
+        return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
+    }
+
+    function restoreCameraPlaceholderHint() {
+        if (!el.cameraPlaceholderHint) return;
+        var hint;
+        if (!pageIsSecure()) hint = CAMERA_PLACEHOLDER_HINTS.insecure;
+        else if (!hasGetUserMedia()) hint = CAMERA_PLACEHOLDER_HINTS.unsupported;
+        else hint = CAMERA_PLACEHOLDER_HINTS.default;
+        el.cameraPlaceholderHint.textContent = hint;
+    }
+
+    function classifyCameraError(error) {
+        var name = (error && error.name) || '';
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+            return {
+                title: 'Camera permission was denied.',
+                detail: 'Allow camera access for this site in the browser settings (site settings → Camera), then turn the camera on again.'
+            };
+        }
+        if (name === 'SecurityError') {
+            return {
+                title: 'Camera access requires HTTPS when using a LAN address.',
+                detail: 'Open GestureForge using the HTTPS LAN address (start the server with a mkcert certificate in certs/ — see the README).'
+            };
+        }
+        if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+            return {
+                title: 'No camera was found on this device.',
+                detail: 'Connect or enable a camera (the front camera works for gesture recognition), then try again.'
+            };
+        }
+        if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+            return {
+                title: 'The camera is already in use by another app.',
+                detail: 'Close the app that is using the camera (camera app, video call, …), then turn the camera on again.'
+            };
+        }
+        if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+            return {
+                title: 'The requested camera is not available on this device.',
+                detail: 'Check that a camera is connected and enabled, then try again.'
+            };
+        }
+        return {
+            title: 'Could not start the camera.',
+            detail: 'Unexpected camera error' + (name ? ' (' + name + ')' : '') + '. Check the browser console for details.'
+        };
+    }
+
+    function announceCameraBlocked(title, detail) {
+        conn.cameraOn = false;
+        conn.recognitionOn = false;
+        setOwnDeviceBadges();
+        resetLocalDetector();
+        toast(title, 'error');
+        if (detail) {
+            if (el.cameraPlaceholderHint) el.cameraPlaceholderHint.textContent = detail;
+            if (el.youStateText) el.youStateText.textContent = detail;
+        }
+    }
+
+    function onLocalCameraStream(stream) {
+        conn.videoStream = stream;
+        el.localVideo.srcObject = stream;
+        el.localVideo.classList.add('active');
+        el.cameraPlaceholder.hidden = true;
+        conn.cameraOn = true;
+        el.btnCameraLocal.textContent = '📷 Turn Camera OFF';
+        el.btnCameraLocal.classList.add('active');
+        setOwnDeviceBadges();
+        resetLocalDetector();
+        sendDeviceStatus();
+        startRecognition();
+    }
+
+    function requestCameraStream(step) {
+        if (step >= CAMERA_CONSTRAINT_STEPS.length) {
+            announceCameraBlocked(
+                'No usable camera was found on this device.',
+                'Check that a camera is connected and enabled, then try again.');
             return;
         }
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false
-        }).then(function (stream) {
-            conn.videoStream = stream;
-            el.localVideo.srcObject = stream;
-            el.localVideo.classList.add('active');
-            el.cameraPlaceholder.hidden = true;
-            conn.cameraOn = true;
-            el.btnCameraLocal.textContent = '📷 Turn Camera OFF';
-            el.btnCameraLocal.classList.add('active');
-            setOwnDeviceBadges();
-            resetLocalDetector();
-            sendDeviceStatus();
-            startRecognition();
-        }).catch(function () {
-            conn.cameraOn = false;
-            setOwnDeviceBadges();
-            toast('Camera permission was denied or the camera is unavailable.', 'error');
-        });
+        navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINT_STEPS[step])
+            .then(function (stream) { onLocalCameraStream(stream); })
+            .catch(function (error) {
+                var name = (error && error.name) || '';
+                if (name === 'OverconstrainedError' && step + 1 < CAMERA_CONSTRAINT_STEPS.length) {
+                    // The ideal front camera / size was not available —
+                    // relax the constraints and retry (graceful fallback).
+                    requestCameraStream(step + 1);
+                    return;
+                }
+                var info = classifyCameraError(error);
+                announceCameraBlocked(info.title, info.detail);
+            });
+    }
+
+    function startLocalCamera() {
+        if (!pageIsSecure()) {
+            // On an insecure origin most browsers never expose
+            // navigator.mediaDevices at all; reporting the real cause
+            // (missing HTTPS) instead of "no local camera" is what turns
+            // the confusing error into an actionable one.
+            announceCameraBlocked(
+                'Camera access requires HTTPS when using a LAN address.',
+                'Open GestureForge using the HTTPS LAN address. (Generate the mkcert development certificate — see the README.)');
+            return;
+        }
+        if (!hasGetUserMedia()) {
+            // Only a genuine lack of getUserMedia support reaches here.
+            announceCameraBlocked(
+                'This browser does not provide a local camera.',
+                'Open Connect in a modern browser that supports getUserMedia (Chrome, Edge, Firefox, Samsung Internet).');
+            return;
+        }
+        requestCameraStream(0);
     }
 
     function stopLocalCamera(notify) {
@@ -914,6 +1038,7 @@
         conn.hands = null;
         conn.processingFrame = false;
         el.cameraPlaceholder.hidden = false;
+        restoreCameraPlaceholderHint();
         if (el.btnCameraLocal) {
             el.btnCameraLocal.textContent = '📷 Turn Camera ON';
             el.btnCameraLocal.classList.remove('active');
@@ -1240,6 +1365,7 @@
         el.youRecognitionBadge = $('you-recognition-badge');
         el.localVideo = $('connect-local-video');
         el.cameraPlaceholder = $('connect-camera-placeholder');
+        el.cameraPlaceholderHint = $('camera-placeholder-hint');
         el.btnCameraLocal = $('btn-camera-local');
         el.youStateText = $('you-state-text');
         el.youSymbol = $('you-symbol');
@@ -1289,6 +1415,7 @@
         setOwnDeviceBadges();
         conn.clientId = storedClientId();
         fitSmallScreen();
+        restoreCameraPlaceholderHint();
         maybeAutoResume();
         conn.recognitionFrame = requestAnimationFrame(recognitionLoop);
     });

@@ -122,112 +122,173 @@ different devices/browsers communicate as a true bidirectional room:
 * **Transport** — the relay uses Flask-Sock on the same Flask dev-server port
   (`flask-sock==0.7.0`); no polling is used for communication.
 
-### Two-Device HTTPS LAN Testing (PC + phone on the same Wi-Fi)
+### Two-Device Camera Testing over LAN
 
-Mobile browsers only allow `navigator.mediaDevices.getUserMedia()` (camera
-access) from a **secure context**. `https://127.0.0.1` counts as secure, but
-a plain `http://192.168.x.x` LAN address does not — so a phone opening the
-HTTP LAN URL sees *"This browser does not provide a local camera."* while the
-PC (using `127.0.0.1`) works fine.
+Test the real two-device setup: **PC = User 1 (creator)** and **Mobile =
+User 2 (joiner)**, both on the same Wi-Fi. Each device uses its **own local
+camera** (`navigator.mediaDevices.getUserMedia()`); camera capture and
+gesture recognition run locally on each device. Only the recognized
+gesture/result (or text) crosses the WebSocket relay — **never webcam
+video**.
 
-By default `python app.py` serves **plain HTTP on `0.0.0.0:5000`**, so the
-page is reachable from every interface: `http://127.0.0.1:5000/connect` on
-the PC and `http://<LAN-IP>:5000/connect` from the same PC or another device
-(subject to the PC firewall). A TLS-only port would break those plain-HTTP
-LAN URLs — an HTTPS dev port is therefore always opt-in, never a silent
-default. For the phone-camera step, enable HTTPS with option 1 or 2 below;
-only the transport changes to HTTPS/WSS. Gesture recognition, MediaPipe,
-Custom Gestures, the WebSocket room/relay architecture, and all existing
-Connect UI behavior are unchanged.
+**Why HTTPS is required for the phone:** mobile browsers only allow
+`getUserMedia()` (camera access) from a **secure context**.
+`https://127.0.0.1` counts as secure, but a plain `http://192.168.x.x` LAN
+address does not — so a phone opening the HTTP LAN URL is told
+*"Camera access requires HTTPS when using a LAN address"* (the Connect page
+detects the insecure context and explains this instead of the misleading
+"This browser does not provide a local camera."). The PC on
+`127.0.0.1` is unaffected.
 
-1. **Install/generate the development certificate (recommended: mkcert).**
-   Certificates are never committed to the repo (see `.gitignore`); each
-   developer generates their own local certificate:
+**Development scope:** this is local LAN development infrastructure only —
+**not production HTTPS**, and the dev server must never be exposed to the
+public internet. No webcam frames are stored or uploaded; the existing
+privacy model is unchanged.
+
+#### Setup (PC, one-time per network)
+
+1. **Install mkcert** (a tool that creates locally trusted certificates):
+   https://github.com/FiloSottile/mkcert#installation
+   * Windows: `winget install FiloSottile.mkcert` (or `choco install mkcert`)
+   * macOS: `brew install mkcert`
+   * Linux: see the mkcert README (download or distro package)
+2. **Install the local mkcert CA** once (into the PC's OS/browser trust
+   store):
 
    ```bash
-   # one-time install of mkcert: https://github.com/FiloSottile/mkcert#installation
    mkcert -install
+   ```
+3. **Generate the certificate** — it must cover `127.0.0.1`, `localhost`,
+   **and** your current LAN IP (the helper detects the LAN IP dynamically,
+   nothing is hardcoded):
 
-   # generate a certificate that covers localhost AND your PC's LAN IP
-   # (find your LAN IP first — see step 3), e.g.:
-   mkcert -cert-file certs/gestureforge-lan-cert.pem \
-          -key-file certs/gestureforge-lan-key.pem \
-          127.0.0.1 localhost 192.168.29.98
+   ```bash
+   python scripts/generate_lan_certificate.py
    ```
 
-   If you skip this step, either set `GESTUREFORGE_FORCE_HTTPS=1` when
-   starting the app to use Flask's **ad-hoc self-signed certificate**
-   (`pip install pyopenssl`, already in `requirements.txt`) — a
-   **DEVELOPMENT / LAN TESTING ONLY** fallback, not a production security
-   solution; each browser will show a one-time "connection is not private"
-   warning; choose *Advanced → Proceed* to continue. Without certificate
-   files or that flag the server stays on plain HTTP, which cannot give the
-   phone camera access (browsers require a secure context). See
-   `certs/README.md` for details and troubleshooting.
+   This runs `mkcert 127.0.0.1 localhost <LAN-IP>` (via the `-cert-file` /
+   `-key-file` flags) and places the files inside `certs/` with the exact
+   names the server auto-detects:
 
-2. **Start GestureForge** on the PC:
+   ```
+   certs/gestureforge-lan-cert.pem
+   certs/gestureforge-lan-key.pem
+   ```
+
+   If your LAN IP changes (different Wi-Fi), re-run the script.
+4. **Start GestureForge** on the PC:
 
    ```bash
    pip install -r requirements.txt
    python app.py
    ```
 
-   The startup banner prints (scheme reflects the active mode):
+   With the certificate pair present, the server **automatically starts
+   with HTTPS** and prints:
 
    ```
    GestureForge server started
 
+   Transport mode: HTTPS (local mkcert development certificate)
+
    Local:
-   http://127.0.0.1:5000
+   https://127.0.0.1:5000
 
    LAN:
-   http://192.168.29.98:5000
+   https://192.168.29.98:5000
 
    Connect:
-   http://192.168.29.98:5000/connect
+   https://192.168.29.98:5000/connect
    ```
 
-   with the LAN IP auto-detected. In HTTPS mode the same URLs use
-   `https://` and the banner reminds you: **"Use the HTTPS LAN URL on the
-   second device."** Quick reachability check from any device:
-   `http://<LAN-IP>:5000/api/connect/health` should answer
-   `{"ok": true, ...}`.
+   Without certificate files it stays on plain HTTP on `0.0.0.0:5000`
+   (`http://127.0.0.1:5000` desktop development keeps working; the phone
+   camera simply needs the certificate step above).
+5. **If the phone cannot reach the server:** allow inbound **TCP port 5000**
+   for Python through the PC's **Windows Firewall**. On first LAN connection
+   Windows usually shows a dialog ("Windows Firewall has blocked some
+   features of this app") — tick *Private networks* and click *Allow
+   access*. Or add the rule manually (elevated terminal):
 
-3. **Find the PC's LAN IP** if it wasn't auto-detected: `ipconfig` (Windows)
-   or `ip addr` / `ifconfig` (Linux/macOS), e.g. `192.168.29.98`.
+   ```bat
+   netsh advfirewall firewall add rule name="GestureForge LAN (TCP 5000)" dir=in action=allow protocol=TCP localport=5000
+   ```
 
-4. **Connect PC and phone to the same Wi-Fi network** (and make sure the
-   router does not enable AP/client isolation, which blocks device-to-device
-   traffic; also allow Python through the PC's firewall).
+#### Test run (both devices)
 
-5. **Open `https://<LAN-IP>:5000/connect` on both devices** — the PC can
-   also use `https://127.0.0.1:5000/connect`.
+6. **PC opens** `https://<LAN-IP>:5000/connect` (the PC may also use
+   `https://127.0.0.1:5000/connect`).
+7. **Mobile is connected to the same Wi-Fi** network as the PC (and the
+   router must not enable AP/client isolation, which blocks
+   device-to-device traffic).
+8. **Mobile opens the same HTTPS URL** — `https://<LAN-IP>:5000/connect` —
+   in Chrome (or another modern browser).
+9. **Mobile must trust the mkcert CA** (see below). The page must show a
+   normal green padlock, not a certificate warning.
+10. **Allow the camera permission** when each browser prompts for it.
+11. **PC creates the room** (**Create Room** — the PC is shown as
+    **You / User 1 / Creator**, note the code, e.g. `GF-DH6G`).
+12. **Mobile joins using the room code** (enter the code → **Join Room** —
+    the phone is shown as **You / User 2 / Joiner**).
 
-6. **Allow camera permission on both devices** when the browser prompts —
-   this normal permission prompt only appears because the page is now served
-   over HTTPS.
+Both sides now show **Other User** (User 2 on the PC, User 1 on the phone)
+as connected. Each device can independently turn its camera ON/OFF, enable
+recognition, show and send gestures, and send/receive text. The WebSocket URL
+is built from `window.location.protocol` / `window.location.host`
+(`static/js/connect/connect.js`), so the HTTPS page automatically uses
+`wss://` — no `ws://`, IP, or host is hardcoded. Quick reachability/transport
+check from any device: `https://<LAN-IP>:5000/api/connect/health` answers
+`{"ok": true, "status": "healthy", "transport": "https", "ws_path": "/ws/connect"}`.
 
-7. **PC creates the room** (**Create Room**, note the code, e.g. `GF-DH6G`).
+#### Mobile certificate trust (Android)
 
-8. **Mobile joins using the room code** (enter the code → **Join Room**).
+The phone **must trust the mkcert CA**; proceeding past a certificate
+warning is not a reliable substitute, because `getUserMedia` needs a
+*trusted* secure context. Practical steps:
 
-Both devices talk to the same Flask + WebSocket server. The client builds the
-WebSocket URL from `window.location.protocol`/`window.location.host` (see
-`static/js/connect/connect.js`), so opening the page over `https://` makes it
-connect with `wss://` automatically — no `ws://`, `127.0.0.1`, or `localhost`
-is ever hardcoded. Both sides show **Other User → Connected**; both local
-cameras run MediaPipe/gesture recognition independently and relay gestures in
-both directions (User 1 ⇄ User 2), while text messages keep working the same
-way as before.
+1. **Locate the CA on the PC** — run `mkcert -CAROOT` and open the folder
+   it prints (typically `%USERPROFILE%\.local\share\mkcert` on Windows,
+   `~/.local/share/mkcert` on Linux, `~/Library/Application Support/mkcert`
+   on macOS). The CA file is `rootCA.pem`.
+2. **Copy `rootCA.pem` to the phone** by any file-transfer method (USB,
+   email, a chat app, or a quick local share on the same Wi-Fi).
+3. On the phone: **Settings → Security → Encryption & credentials (or
+   "Installed certificates") → Install a certificate → CA certificate**,
+   select the copied `rootCA.pem`, name it (e.g. `gestureforge-mkcert`) and
+   confirm. On Android 13+ the same option lives under
+   **Settings → Security → Additional settings → Install a certificate**.
+4. **Fully close the mobile browser and reopen**
+   `https://<LAN-IP>:5000/connect` (some browsers cache the trust decision).
+   The padlock should be green and the camera permission prompt should
+   appear when you turn the camera on.
 
-**Important:** plain `http://<LAN-IP>:5000/connect` may still load the page,
-but mobile browsers will typically refuse camera access on that insecure
-origin — always use the `https://` LAN URL on the second device.
+If the phone still reports a certificate problem: confirm the certificate
+was installed as a **CA** certificate (not a client certificate), that the
+file used was the mkcert `rootCA.pem` (not the leaf certificate), and that
+it hasn't expired (mkcert CAs are valid for ~3 years, leaf certificates ~2
+years). The most reliable test browser is the device's default Chrome.
 
-To force plain HTTP while a certificate pair exists in `certs/` (e.g. behind
-an external HTTPS-terminating proxy), set `GESTUREFORGE_DISABLE_HTTPS=1`
-before starting the app. HTTPS without certificate files is opt-in via
-`GESTUREFORGE_FORCE_HTTPS=1` (ad-hoc self-signed).
+**iOS note:** user CA installation on iOS requires installing a profile that
+wraps `rootCA.pem` as a trusted root; iOS camera access over a self-signed
+LAN certificate is also stricter than Android's. For the two-device test,
+an Android device with the mkcert CA installed is the recommended
+companion device.
+
+#### Troubleshooting the camera
+
+The Connect page reports specific, actionable camera states (the camera area
+keeps the last message visible):
+
+* **Insecure context** — *"Camera access requires HTTPS when using a LAN
+  address. Open GestureForge using the HTTPS LAN address."* → use the
+  `https://` URL (certificate steps above).
+* **Permission denied** — allow camera access for the site in the browser's
+  site settings, then turn the camera on again.
+* **No camera found** — enable/connect a camera (the front camera is
+  preferred, never forced; any camera works).
+* **Camera already in use** — close the other app holding the camera.
+* **Browser without `getUserMedia`** — *"This browser does not provide a
+  local camera."* is shown only for that genuine case; use a modern browser.
 
 ### MongoDB configuration
 

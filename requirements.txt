@@ -14,8 +14,3 @@ pymongo>=4.6.0,<5.0.0
 
 # Real-time two-person Connect rooms (WebSocket relay on the Flask dev server)
 flask-sock==0.7.0
-
-# HTTPS LAN testing fallback for Connect (mobile camera access requires a
-# secure context). Only used when no certs/*.pem files are present; see
-# services/dev_tls.py and the README "Two-Device HTTPS LAN Testing" section.
-pyopenssl>=23.0.0
