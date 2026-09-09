@@ -105,6 +105,7 @@ class StudioSignManager {
         this.lastTranslatedSentence = "";
         this.updateCounts();
         this.updateSuggestions("");
+        if (window.sentenceAutocomplete) window.sentenceAutocomplete.refresh();
     }
 
     async postSentenceAction(action, text = '') {
@@ -236,6 +237,9 @@ class StudioSignManager {
     onSentenceChanged(sentence, force = false) {
         this.updateSuggestions(sentence);
         this.triggerTranslation(sentence, force);
+        // Contextual sentence autocomplete reacts to the same change, whether
+        // it came from the keyboard or from recognised signs.
+        if (window.sentenceAutocomplete) window.sentenceAutocomplete.refresh();
     }
 
     /**

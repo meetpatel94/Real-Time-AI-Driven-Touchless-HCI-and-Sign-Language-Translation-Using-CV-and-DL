@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, jsonify, request
 from core.recognition.recognition_state import recognition_state
+from services.sentence_completion_service import sentence_completion_service
 from services.translation_service import translation_service
 from services.word_suggestion_service import word_suggestion_service
 from services.state_service import global_state
@@ -24,6 +25,45 @@ def get_word_suggestions():
         "prefix": prefix,
         "suggestions": suggestions
     })
+
+@studio_bp.route("/api/studio/completions", methods=["GET"])
+def get_sentence_completions():
+    """Contextual phrase/sentence completions for the studio text input."""
+    text = request.args.get("text", "")
+    caret = request.args.get("caret", default=None, type=int)
+    limit = request.args.get("limit", default=3, type=int)
+    user_id = (request.args.get("user_id", "") or "").strip()
+
+    result = sentence_completion_service.complete(
+        text,
+        caret=caret,
+        limit=limit,
+        user_id=user_id or None,
+    )
+    return jsonify(result)
+
+
+@studio_bp.route("/api/studio/completions/accept", methods=["POST"])
+def accept_sentence_completion():
+    """Remember an accepted completion (personalization ranking signal)."""
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    accepted = data.get("suggestion", "") or data.get("text_accepted", "")
+    caret = data.get("caret", None)
+    try:
+        caret = int(caret) if caret is not None else None
+    except (TypeError, ValueError):
+        caret = None
+    user_id = str(data.get("user_id", "") or "").strip()
+
+    remembered = sentence_completion_service.register_acceptance(
+        text=text,
+        accepted=accepted,
+        caret=caret,
+        user_id=user_id or None,
+    )
+    return jsonify({"success": True, "remembered": bool(remembered)})
+
 
 @studio_bp.route("/api/studio/translate", methods=["POST"])
 def translate():
