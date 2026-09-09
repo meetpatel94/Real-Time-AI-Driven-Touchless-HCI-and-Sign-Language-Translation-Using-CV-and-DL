@@ -2,17 +2,33 @@
  * Global browser-side hand scroll relay.
  *
  * MediaPipe runs once in the server's existing GestureEngine.  The server emits
- * only a rate-limited { direction, amount, sequence } event after it detects
- * intentional right-palm movement.  This client is loaded by base.html, so it
- * applies the event to every application workspace without opening a camera or
- * interpreting any custom-gesture label.
+ * only a bounded, rate-limited { direction, amount, sequence } event after it
+ * detects an intentional open right hand moving vertically.  This client is
+ * loaded by base.html, so it applies the event to every application workspace
+ * without opening a camera or interpreting any custom-gesture label.
+ *
+ * Amounts are small and continuous (pixels/second x elapsed time).  Instead of
+ * jumping the container once per event, the deltas are queued and eased out
+ * across animation frames, which keeps scrolling smooth and prevents a large
+ * backlog from ever being applied as one jump.
  */
 class GlobalHandScrollController {
     constructor() {
-        this.pollIntervalMs = 120;
+        this.pollIntervalMs = 90;
         this.lastSequence = null;
         this.pollInFlight = false;
         this.timer = null;
+
+        // Smoothing / pacing (pixels).
+        this.frameSmoothing = 0.25;   // share of the pending distance per frame
+        this.minStepPx = 1;           // never stall on a sub-pixel remainder
+        this.maxStepPx = 34;          // per-frame cap (~2000 px/s at 60 FPS)
+        this.maxPendingPx = 260;      // backlog cap so a burst cannot jump far
+        this.restThresholdPx = 0.5;   // treat smaller remainders as finished
+
+        this.pendingDelta = 0;
+        this.animationFrame = null;
+
         this.start();
     }
 
@@ -22,12 +38,20 @@ class GlobalHandScrollController {
         this.poll();
         this.timer = window.setInterval(() => this.poll(), this.pollIntervalMs);
         window.addEventListener('beforeunload', () => this.stop(), { once: true });
+        document.addEventListener('visibilitychange', () => {
+            // Never let a hidden tab accumulate a scroll backlog.
+            if (document.hidden) this.pendingDelta = 0;
+        });
     }
 
     stop() {
         if (this.timer !== null) {
             window.clearInterval(this.timer);
             this.timer = null;
+        }
+        if (this.animationFrame !== null) {
+            window.cancelAnimationFrame(this.animationFrame);
+            this.animationFrame = null;
         }
     }
 
@@ -105,13 +129,57 @@ class GlobalHandScrollController {
         // therefore use a negative top offset and a hand moving down a positive
         // one.
         const delta = direction === 'up' ? -amount : amount;
+        const queued = this.pendingDelta + delta;
+        this.pendingDelta = Math.max(-this.maxPendingPx, Math.min(this.maxPendingPx, queued));
+
+        this.startAnimation();
+    }
+
+    startAnimation() {
+        if (this.animationFrame !== null) return;
+        this.animationFrame = window.requestAnimationFrame(() => this.step());
+    }
+
+    step() {
+        this.animationFrame = null;
+
+        // A hidden tab must never scroll; drop whatever is queued.
+        if (document.hidden) {
+            this.pendingDelta = 0;
+            return;
+        }
+
         const target = this.activeScrollTarget();
-        if (!target) return;
+        if (!target) {
+            this.pendingDelta = 0;
+            return;
+        }
+
+        const remaining = this.pendingDelta;
+        if (Math.abs(remaining) < this.restThresholdPx) {
+            this.pendingDelta = 0;
+            return;
+        }
+
+        // Ease the pending distance out: a constant share per frame with a
+        // minimum step, capped per frame so a fast gesture stays controllable.
+        const magnitude = Math.min(
+            this.maxStepPx,
+            Math.max(this.minStepPx, Math.abs(remaining) * this.frameSmoothing)
+        );
+        const stepDelta = Math.sign(remaining) * Math.min(magnitude, Math.abs(remaining));
+        this.pendingDelta = remaining - stepDelta;
 
         if (typeof target.scrollBy === 'function') {
-            target.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+            target.scrollBy({ top: stepDelta, left: 0, behavior: 'auto' });
         } else {
-            target.scrollTop += delta;
+            target.scrollTop += stepDelta;
+        }
+
+        if (Math.abs(this.pendingDelta) >= this.restThresholdPx) {
+            this.startAnimation();
+        } else {
+            this.pendingDelta = 0;
         }
     }
 
