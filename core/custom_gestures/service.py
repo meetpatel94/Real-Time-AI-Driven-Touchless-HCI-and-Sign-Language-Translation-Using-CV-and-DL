@@ -30,6 +30,7 @@ from core.custom_gestures.feature_extractor import (
     mirrored_feature_vector,
     vector_distance,
 )
+from core.custom_gestures.learning import CustomGestureLearningStore, best_similarity
 from services.logging_service import logger
 
 
@@ -88,6 +89,25 @@ def sanitize_gesture_name(name: Any) -> str:
     return safe
 
 
+def _default_event_sink(event: Dict[str, Any]) -> bool:
+    """Mirror learning events into the existing MongoDB persistence layer.
+
+    The repository degrades to a no-op when MongoDB is unavailable, so the
+    custom gesture library keeps working purely from local storage.
+    """
+    try:
+        from repositories.custom_gesture_learning_repository import (
+            custom_gesture_learning_repository,
+        )
+    except Exception:
+        return False
+    try:
+        return bool(custom_gesture_learning_repository.add_event(event))
+    except Exception as exc:
+        logger.warning(f"Could not persist custom gesture learning event: {exc}")
+        return False
+
+
 @dataclass
 class CaptureSession:
     gesture_id: str
@@ -121,6 +141,7 @@ class CustomGestureService:
         smoothing_window: Optional[int] = None,
         min_ready_samples: Optional[int] = None,
         min_tracking_quality: Optional[float] = None,
+        event_sink: Optional[Any] = None,
     ):
         self.base_dir = os.path.abspath(base_dir or getattr(
             Config,
@@ -178,6 +199,16 @@ class CustomGestureService:
         self._recent_predictions: Deque[Dict[str, Any]] = deque(maxlen=8)
         self._runtime: Dict[str, Any] = self._default_runtime()
         self._ensure_base_dir()
+        # Self-learning state stays inside the custom gesture storage tree and
+        # is only reachable through this isolated service.
+        self._learning = CustomGestureLearningStore(
+            base_dir=self.base_dir,
+            event_sink=event_sink if event_sink is not None else _default_event_sink,
+            max_match_distance=self.max_match_distance,
+            min_tracking_quality=self.min_tracking_quality,
+        )
+        self._last_stable_observation: Optional[Dict[str, Any]] = None
+        self._last_detected_id = ""
 
     # ------------------------------------------------------------------
     # Filesystem safety and metadata
@@ -225,6 +256,13 @@ class CustomGestureService:
     def _sample_count(self, gesture_id: Any) -> int:
         return len(self._sample_paths(gesture_id))
 
+    def _variation_paths(self, gesture_id: Any) -> List[str]:
+        folder = self._gesture_dir(gesture_id)
+        return sorted(glob.glob(os.path.join(folder, "variations", self._learning.VARIATION_GLOB)))
+
+    def _variation_count(self, gesture_id: Any) -> int:
+        return len(self._variation_paths(gesture_id))
+
     def _load_sample_features(self, gesture_id: Any) -> List[List[float]]:
         features: List[List[float]] = []
         for path in self._sample_paths(gesture_id):
@@ -235,6 +273,18 @@ class CustomGestureService:
                     features.append([float(value) for value in sample_features])
             except Exception as exc:
                 logger.warning(f"Skipping unreadable custom gesture sample {path}: {exc}")
+        return features
+
+    def _load_variation_features(self, gesture_id: Any) -> List[List[float]]:
+        features: List[List[float]] = []
+        for path in self._variation_paths(gesture_id):
+            try:
+                payload = self._read_json(path)
+                sample_features = payload.get("features", [])
+                if isinstance(sample_features, list) and sample_features:
+                    features.append([float(value) for value in sample_features])
+            except Exception as exc:
+                logger.warning(f"Skipping unreadable custom gesture variation {path}: {exc}")
         return features
 
     def _status_for(self, metadata: Dict[str, Any], sample_count: int) -> str:
@@ -268,6 +318,12 @@ class CustomGestureService:
             ),
             "prototype": metadata.get("prototype", []) if isinstance(metadata.get("prototype", []), list) else [],
             "feature_count": _safe_int(metadata.get("feature_count"), 0, 0, 1000),
+            "variation_count": _safe_int(metadata.get("variation_count"), 0, 0, 1000),
+            "learning_stats": (
+                metadata.get("learning_stats")
+                if isinstance(metadata.get("learning_stats"), dict)
+                else {}
+            ),
         }
         normalized["status"] = self._status_for(normalized, sample_count)
         return normalized
@@ -302,6 +358,9 @@ class CustomGestureService:
             self._ensure_base_dir()
             cache: Dict[str, Dict[str, Any]] = {}
             for entry in sorted(os.listdir(self.base_dir)):
+                if entry.startswith(("_", ".")):
+                    # Internal folders (e.g. "_learning") are never gestures.
+                    continue
                 folder = os.path.join(self.base_dir, entry)
                 if not os.path.isdir(folder):
                     continue
@@ -316,7 +375,17 @@ class CustomGestureService:
                 if features and not metadata.get("prototype"):
                     metadata["prototype"] = mean_vector(features)
                 metadata["sample_features"] = features
+                metadata["variation_features"] = self._load_variation_features(gesture_id)
                 metadata["sample_count"] = len(features) if features else self._sample_count(gesture_id)
+                metadata["variation_count"] = len(metadata["variation_features"])
+                try:
+                    pending_clusters = self._learning.load_pending_variations(folder)
+                    metadata["pending_variation_count"] = sum(
+                        1 for cluster in pending_clusters
+                        if int(cluster.get("count", 0) or 0) >= self._learning.evolution_min_observations
+                    )
+                except Exception:
+                    metadata["pending_variation_count"] = 0
                 metadata["status"] = self._status_for(metadata, metadata["sample_count"])
                 cache[gesture_id] = metadata
             self._cache = cache
@@ -363,6 +432,14 @@ class CustomGestureService:
     def _public_record(metadata: Dict[str, Any]) -> Dict[str, Any]:
         sample_count = int(metadata.get("sample_count", 0) or 0)
         target_samples = int(metadata.get("target_samples", 30) or 30)
+        stats = metadata.get("learning_stats") if isinstance(metadata.get("learning_stats"), dict) else {}
+        detections = int(stats.get("detections", 0) or 0)
+        corrections_caused = int(stats.get("corrections_caused", 0) or 0)
+        recognition_accuracy = (
+            round(detections / max(1, detections + corrections_caused) * 100.0, 1)
+            if (detections + corrections_caused) > 0
+            else None
+        )
         return {
             "gesture_id": metadata.get("gesture_id", ""),
             "gesture_name": metadata.get("gesture_name", ""),
@@ -376,6 +453,11 @@ class CustomGestureService:
             "updated_at": metadata.get("updated_at", ""),
             "similarity_threshold": float(metadata.get("similarity_threshold", 0.85) or 0.85),
             "storage_folder": metadata.get("gesture_id", ""),
+            "variation_count": int(metadata.get("variation_count", 0) or 0),
+            "pending_variation_count": int(metadata.get("pending_variation_count", 0) or 0),
+            "detection_count": detections,
+            "correction_count": corrections_caused,
+            "recognition_accuracy": recognition_accuracy,
         }
 
     def start_capture(
@@ -385,12 +467,22 @@ class CustomGestureService:
         hand: Any = "either",
         target_samples: Any = 30,
         replace: bool = False,
+        candidate_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         safe_id = sanitize_gesture_name(gesture_name)
         friendly_name = str(gesture_name or "").strip()
         target = _safe_int(target_samples, 30, 1, 300)
         normalized_hand = self._normalize_hand(hand)
         folder = self._gesture_dir(safe_id)
+
+        pending_learn = None
+        if candidate_id:
+            pending_learn = self._learning.get_pending_learn(str(candidate_id))
+            if pending_learn is None:
+                return {
+                    "success": False,
+                    "error": "The candidate samples are no longer available. Use a regular capture instead.",
+                }
 
         with self._lock:
             if self._capture_session and self._capture_session.active:
@@ -457,7 +549,60 @@ class CustomGestureService:
                 "message": "Capture started. Keep the gesture visible until all samples are collected.",
             })
 
+            if pending_learn is not None:
+                self._learning.set_pending_learn_target(str(candidate_id), safe_id)
+                preloaded = self._preload_candidate_samples_locked(self._capture_session, pending_learn)
+                if preloaded:
+                    self._runtime["message"] = (
+                        f"Preloaded {preloaded} captured sample(s) from the gesture candidate."
+                    )
+                if self._sample_count(safe_id) >= target:
+                    self._complete_capture_locked(self._capture_session)
+                    return {"success": True, "gesture": self._public_record(self._load_metadata(safe_id) or metadata), "runtime": dict(self._runtime)}
+
             return {"success": True, "gesture": self._public_record(metadata), "runtime": dict(self._runtime)}
+
+    def _preload_candidate_samples_locked(self, session: CaptureSession, pending_learn: Dict[str, Any]) -> int:
+        """Write the candidate's captured samples into the new gesture folder."""
+        written = 0
+        target = session.target_samples
+        for observation in pending_learn.get("observations", []):
+            if written >= target:
+                break
+            sample = dict(observation.get("sample", {}) or {})
+            if not sample.get("features"):
+                continue
+            written += 1
+            sample.update({
+                "schema_version": self.SCHEMA_VERSION,
+                "gesture_id": session.gesture_id,
+                "gesture_name": session.gesture_name,
+                "description": session.description,
+                "hand": session.hand,
+                "captured_handedness": observation.get("handedness", ""),
+                "captured_at": observation.get("at", _utc_now()),
+                "sample_index": written,
+                "source": "gesture_candidate",
+            })
+            sample_path = os.path.join(self._gesture_dir(session.gesture_id), f"sample_{written:03d}.json")
+            self._write_json_atomic(sample_path, sample)
+        if written:
+            features = self._load_sample_features(session.gesture_id)
+            prototype = mean_vector(features)
+            metadata = self._load_metadata(session.gesture_id) or {}
+            metadata.update({
+                "gesture_id": session.gesture_id,
+                "gesture_name": session.gesture_name,
+                "description": session.description,
+                "hand": session.hand,
+                "sample_count": len(features),
+                "target_samples": target,
+                "status": "Capturing" if len(features) < target else "Ready",
+                "prototype": prototype,
+                "feature_count": len(prototype),
+            })
+            self._save_metadata(metadata)
+        return written
 
     def stop_capture(self) -> Dict[str, Any]:
         with self._lock:
@@ -564,6 +709,10 @@ class CustomGestureService:
                 self._capture_session = None
             if self._runtime.get("expected_gesture_id") == safe_id:
                 self._runtime = self._default_runtime()
+            if self._last_detected_id == safe_id:
+                self._last_detected_id = ""
+            if self._last_stable_observation and self._last_stable_observation.get("gesture_id") == safe_id:
+                self._last_stable_observation = None
             shutil.rmtree(folder)
             self._invalidate_cache()
             self._prediction_buffer.clear()
@@ -602,13 +751,19 @@ class CustomGestureService:
             "message": "Custom gesture recognition is idle.",
             "updated_at": _utc_now(),
             "recent_predictions": [],
+            "correction": None,
         }
+
+    def _reset_learning_runtime(self) -> None:
+        self._prediction_buffer.clear()
+        self._last_stable_observation = None
+        self._last_detected_id = ""
 
     def start_live_recognition(self) -> Dict[str, Any]:
         with self._lock:
             if self._capture_session and self._capture_session.active:
                 return {"success": False, "error": "Finish or stop capture before starting live recognition."}
-            self._prediction_buffer.clear()
+            self._reset_learning_runtime()
             self._runtime = self._default_runtime(mode="live")
             self._runtime.update({
                 "active": True,
@@ -631,7 +786,7 @@ class CustomGestureService:
             if int(gesture.get("sample_count", 0)) < int(gesture.get("target_samples", 1) or 1):
                 return {"success": False, "error": "Capture all requested samples before testing this gesture."}
 
-            self._prediction_buffer.clear()
+            self._reset_learning_runtime()
             self._runtime = self._default_runtime(mode="test")
             self._runtime.update({
                 "active": True,
@@ -647,11 +802,13 @@ class CustomGestureService:
         with self._lock:
             if self._runtime.get("mode") in {"live", "test"}:
                 self._runtime = self._default_runtime()
-            self._prediction_buffer.clear()
+            self._reset_learning_runtime()
             return {"success": True, "runtime": dict(self._runtime)}
 
     def notify_camera_off(self) -> None:
         with self._lock:
+            self._last_stable_observation = None
+            self._last_detected_id = ""
             if self._runtime.get("mode") in {"live", "test", "capture"}:
                 self._runtime.update({
                     "hand_detected": False,
@@ -664,6 +821,7 @@ class CustomGestureService:
                     "raw_gesture_id": "",
                     "raw_similarity": 0.0,
                     "stable_frames": 0,
+                    "correction": None,
                     "status": "NO_HAND",
                     "detection_status": "Camera is off. Enable the camera to capture or test custom gestures.",
                     "updated_at": _utc_now(),
@@ -682,7 +840,7 @@ class CustomGestureService:
                     "message": "Return to Custom Gestures to continue capturing samples.",
                     "updated_at": _utc_now(),
                 })
-            self._prediction_buffer.clear()
+            self._reset_learning_runtime()
 
     def get_runtime_status(self) -> Dict[str, Any]:
         with self._lock:
@@ -854,6 +1012,21 @@ class CustomGestureService:
             "capture_progress": 100.0,
             "updated_at": _utc_now(),
         })
+        self._finalize_candidate_learning(session.gesture_id)
+
+    def _finalize_candidate_learning(self, gesture_id: str) -> None:
+        """Mark the source candidate learned once the gesture capture finished."""
+        try:
+            candidate_id = self._learning.finalize_candidate_for(gesture_id)
+            if candidate_id:
+                metadata = self._load_metadata(gesture_id)
+                if metadata is not None:
+                    stats = metadata.setdefault("learning_stats", {})
+                    stats["candidates_learned"] = int(stats.get("candidates_learned", 0) or 0) + 1
+                    stats["learned_from_candidate"] = candidate_id
+                    self._save_metadata(metadata)
+        except Exception as exc:
+            logger.warning(f"Could not finalize learned candidate for {gesture_id}: {exc}")
 
     def _compatible_hand(self, gesture_hand: str, handedness: str) -> bool:
         return gesture_hand == "either" or gesture_hand == handedness
@@ -870,6 +1043,9 @@ class CustomGestureService:
             distances.append(min(vector_distance(candidate, prototype) for candidate in candidate_variants))
         for sample_features in gesture.get("sample_features", [])[:120]:
             distances.append(min(vector_distance(candidate, sample_features) for candidate in candidate_variants))
+        # Accepted personalized variations extend the gesture's representation.
+        for variation_features in gesture.get("variation_features", [])[:40]:
+            distances.append(min(vector_distance(candidate, variation_features) for candidate in candidate_variants))
         if not distances:
             return 0.0, 1.0
         best_distance = min(distances)
@@ -913,6 +1089,7 @@ class CustomGestureService:
                 "threshold": threshold,
                 "handedness": handedness,
                 "reason": "MATCH_CANDIDATE",
+                "features": candidate_features,
             }
             if best is None or similarity > float(best.get("similarity", 0.0)):
                 best = item
@@ -930,6 +1107,14 @@ class CustomGestureService:
             candidate = self._best_match_for_hand(left_hand, "left")
             if candidate:
                 candidates.append(candidate)
+        # Per-hand feature vectors feed the self-learning hooks (correction
+        # signatures, unknown clustering) without changing match results.
+        hand_features: Dict[str, List[float]] = {}
+        for candidate in candidates:
+            handedness = str(candidate.get("handedness", ""))
+            features = candidate.get("features")
+            if handedness and features and handedness not in hand_features:
+                hand_features[handedness] = features
         if not candidates:
             return {
                 "gesture_id": "",
@@ -939,8 +1124,13 @@ class CustomGestureService:
                 "threshold": self.similarity_threshold,
                 "handedness": "none",
                 "reason": "NO_HAND" if left_hand is None and right_hand is None else "NO_ENABLED_GESTURES",
+                "hand_features": hand_features,
             }
-        return max(candidates, key=lambda item: float(item.get("similarity", 0.0)))
+        result = max(candidates, key=lambda item: float(item.get("similarity", 0.0)))
+        result = dict(result)
+        result.pop("features", None)
+        result["hand_features"] = hand_features
+        return result
 
     def _stable_prediction(self, raw_match: Dict[str, Any]) -> Dict[str, Any]:
         raw_similarity = float(raw_match.get("similarity", 0.0) or 0.0)
@@ -953,6 +1143,7 @@ class CustomGestureService:
             "gesture_name": raw_label if accepted else "Unknown",
             "similarity": raw_similarity if accepted else 0.0,
             "threshold": raw_threshold,
+            "handedness": str(raw_match.get("handedness") or ""),
         }
         self._prediction_buffer.append(buffer_item)
 
@@ -978,18 +1169,21 @@ class CustomGestureService:
         matching_items = [item for item in accepted_items if item.get("gesture_id") == stable_id]
         avg_similarity = sum(float(item.get("similarity", 0.0)) for item in matching_items) / max(1, len(matching_items))
         gesture_name = next((item.get("gesture_name", "Unknown") for item in reversed(matching_items) if item.get("gesture_name")), "Unknown")
+        stable_handedness = next((item.get("handedness", "") for item in reversed(matching_items) if item.get("handedness")), "")
         if avg_similarity < self.similarity_threshold:
             return {
                 "gesture_id": "",
                 "gesture_name": "Unknown",
                 "confidence": 0.0,
                 "stable_frames": stable_count,
+                "handedness": stable_handedness,
             }
         return {
             "gesture_id": stable_id,
             "gesture_name": gesture_name,
             "confidence": avg_similarity,
             "stable_frames": stable_count,
+            "handedness": stable_handedness,
         }
 
     def _process_recognition_frame(self, left_hand: Any, right_hand: Any) -> Dict[str, Any]:
@@ -997,9 +1191,12 @@ class CustomGestureService:
             any_hand = left_hand is not None or right_hand is not None
             if not any_hand:
                 self._prediction_buffer.clear()
+                self._last_stable_observation = None
+                self._last_detected_id = ""
                 self._runtime.update({
                     "hand_detected": False,
                     "handedness": "none",
+                    "correction": None,
                     "raw_prediction": "Unknown",
                     "raw_gesture_id": "",
                     "raw_similarity": 0.0,
@@ -1024,6 +1221,46 @@ class CustomGestureService:
             confidence = float(stable.get("confidence", 0.0) or 0.0)
             mode = self._runtime.get("mode", "live")
             expected_id = str(self._runtime.get("expected_gesture_id") or "")
+
+            # ----------------------------------------------------------
+            # Self-learning hooks (Custom Gestures scope only)
+            #   * detection episodes + personalized correction memory
+            #   * gesture evolution (valid variations)
+            #   * unknown gesture clustering (live mode only)
+            # These never modify the A-Z model or global state.
+            # ----------------------------------------------------------
+            hand_features = raw_match.get("hand_features") or {}
+            obs_handedness = str(stable.get("handedness") or "")
+            if not obs_handedness and hand_features:
+                obs_handedness = next(iter(hand_features))
+            obs_features = hand_features.get(obs_handedness)
+
+            correction_info = None
+            if detected_id:
+                if mode == "live":
+                    self._record_detection_episode(detected_id)
+                self._last_stable_observation = {
+                    "gesture_id": detected_id,
+                    "features": obs_features,
+                    "handedness": obs_handedness,
+                    "confidence": confidence,
+                    "at": time.monotonic(),
+                }
+                if mode == "live":
+                    self._record_evolution_observation(
+                        detected_id, obs_handedness, confidence, left_hand, right_hand
+                    )
+                    correction_info = self._maybe_apply_correction(
+                        detected_id, detected_name, obs_features
+                    )
+                    if correction_info:
+                        detected_id = correction_info["corrected_gesture_id"]
+                        detected_name = correction_info["corrected_name"]
+            else:
+                self._last_stable_observation = None
+                self._last_detected_id = ""
+                if mode == "live":
+                    self._record_unknown_observation(left_hand, right_hand)
 
             if mode == "test" and expected_id:
                 if detected_id and detected_id == expected_id:
@@ -1077,8 +1314,332 @@ class CustomGestureService:
                 "message": message,
                 "updated_at": _utc_now(),
                 "recent_predictions": list(self._recent_predictions),
+                "correction": correction_info or None,
             })
             return dict(self._runtime)
+
+    # ------------------------------------------------------------------
+    # Self-learning hooks (conservative; Custom Gestures scope only)
+    # ------------------------------------------------------------------
+    def _record_detection_episode(self, gesture_id: str) -> None:
+        if gesture_id == self._last_detected_id:
+            return
+        self._last_detected_id = gesture_id
+        self._update_gesture_stats(gesture_id, detections=1, last_detected_at=_utc_now())
+
+    def _update_gesture_stats(self, gesture_id: str, **increments: Any) -> None:
+        try:
+            metadata = self._load_metadata(gesture_id)
+            if metadata is None:
+                return
+            stats = metadata.get("learning_stats") if isinstance(metadata.get("learning_stats"), dict) else {}
+            for key, value in increments.items():
+                if key == "last_detected_at":
+                    stats["last_detected_at"] = str(value)
+                else:
+                    stats[key] = int(stats.get(key, 0) or 0) + int(value)
+            metadata["learning_stats"] = stats
+            self._save_metadata(metadata)
+        except Exception as exc:
+            logger.warning(f"Could not update custom gesture stats for {gesture_id}: {exc}")
+
+    def _record_unknown_observation(self, left_hand: Any, right_hand: Any) -> None:
+        best = None
+        for handedness, landmarks in (("right", right_hand), ("left", left_hand)):
+            if landmarks is None:
+                continue
+            quality = feature_extractor.tracking_quality(landmarks)
+            if best is None or quality > best[0]:
+                best = (quality, handedness, landmarks)
+        if best is None:
+            return
+        quality, handedness, landmarks = best
+        if quality < self.min_tracking_quality:
+            return
+        try:
+            features = feature_extractor.feature_vector(landmarks)
+            self._learning.record_unknown_observation(
+                handedness,
+                feature_extractor.sample_representation(landmarks),
+                features,
+            )
+        except Exception as exc:
+            logger.warning(f"Unknown gesture clustering skipped: {exc}")
+
+    def _record_evolution_observation(
+        self,
+        gesture_id: str,
+        handedness: str,
+        confidence: float,
+        left_hand: Any,
+        right_hand: Any,
+    ) -> None:
+        if confidence < self._learning.evolution_min_confidence:
+            return
+        if handedness == "right":
+            landmarks = right_hand
+        elif handedness == "left":
+            landmarks = left_hand
+        else:
+            landmarks = right_hand if right_hand is not None else left_hand
+        if landmarks is None:
+            return
+        try:
+            gesture = self._load_cache().get(gesture_id)
+            if not gesture:
+                return
+            references = list(gesture.get("sample_features", [])) + list(gesture.get("variation_features", []))
+            if not references:
+                return
+            features = feature_extractor.feature_vector(landmarks)
+            self._learning.record_evolution_observation(
+                gesture_dir=self._gesture_dir(gesture_id),
+                gesture_id=gesture_id,
+                gesture_name=str(gesture.get("gesture_name", gesture_id)),
+                hand=str(gesture.get("hand", "either")),
+                features=features,
+                sample_representation=feature_extractor.sample_representation(landmarks),
+                confidence=confidence,
+                prototype=gesture.get("prototype", []),
+                reference_features=references,
+            )
+        except Exception as exc:
+            logger.warning(f"Gesture evolution observation skipped: {exc}")
+
+    def _maybe_apply_correction(
+        self,
+        detected_id: str,
+        detected_name: str,
+        features: Optional[List[float]],
+    ) -> Optional[Dict[str, Any]]:
+        if not features:
+            return None
+        try:
+            found = self._learning.find_correction(predicted_gesture_id=detected_id, features=features)
+        except Exception as exc:
+            logger.warning(f"Correction memory lookup skipped: {exc}")
+            return None
+        if not found:
+            return None
+        target = self._load_cache().get(found["correct_gesture_id"])
+        if not target or not target.get("enabled", True):
+            return None
+        if int(target.get("sample_count", 0) or 0) < int(target.get("target_samples", 1) or 1):
+            return None
+        info = {
+            "predicted_gesture_id": detected_id,
+            "corrected_gesture_id": found["correct_gesture_id"],
+            "original_name": detected_name,
+            "corrected_name": target.get("gesture_name", found["correct_gesture_id"]),
+            "evidence": found["evidence"],
+            "signature_similarity": round(float(found.get("best_signature_similarity", 0.0)) * 100.0, 1),
+        }
+        self._update_gesture_stats(found["correct_gesture_id"], corrections_applied=1)
+        self._learning.emit_event("correction_applied", info, gesture_id=found["correct_gesture_id"])
+        return info
+
+    # ------------------------------------------------------------------
+    # Public self-learning API (routed only from the Custom Gestures page)
+    # ------------------------------------------------------------------
+    def learning_status(self) -> Dict[str, Any]:
+        with self._lock:
+            return {"success": True, "learning": self._learning.learning_status()}
+
+    def prepare_candidate_learning(self, candidate_id: Any) -> Dict[str, Any]:
+        with self._lock:
+            result = self._learning.prepare_learn(str(candidate_id))
+            if result.get("success"):
+                self._prediction_buffer.clear()
+            return result
+
+    def ignore_candidate(self, candidate_id: Any) -> Dict[str, Any]:
+        with self._lock:
+            return self._learning.ignore_candidate(str(candidate_id))
+
+    def record_correction(
+        self,
+        predicted_gesture_id: Any,
+        correct_gesture_id: Any,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            try:
+                safe_predicted = sanitize_gesture_name(predicted_gesture_id)
+                safe_correct = sanitize_gesture_name(correct_gesture_id)
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
+            if safe_predicted == safe_correct:
+                return {"success": False, "error": "Choose a different gesture for the correction."}
+            if self._load_metadata(safe_predicted) is None:
+                return {"success": False, "error": "The predicted gesture is not a saved custom gesture."}
+            correct = self._load_metadata(safe_correct)
+            if correct is None:
+                return {"success": False, "error": "Correction target gesture not found."}
+            if not correct.get("enabled", True):
+                return {"success": False, "error": "The correction target must be an enabled gesture."}
+            if int(correct.get("sample_count", 0) or 0) < int(correct.get("target_samples", 1) or 1):
+                return {"success": False, "error": "The correction target must have captured all requested samples."}
+
+            signature: Optional[List[float]] = None
+            handedness = ""
+            confidence = 0.0
+            observation = self._last_stable_observation
+            if observation and observation.get("gesture_id") == safe_predicted:
+                age = time.monotonic() - float(observation.get("at", 0.0) or 0.0)
+                if age <= 20.0 and observation.get("features"):
+                    signature = list(observation["features"])
+                    handedness = str(observation.get("handedness", ""))
+                    confidence = float(observation.get("confidence", 0.0) or 0.0)
+
+            correction = self._learning.add_correction(
+                predicted_gesture_id=safe_predicted,
+                correct_gesture_id=safe_correct,
+                signature=signature,
+                handedness=handedness,
+                confidence=confidence,
+            )
+            self._update_gesture_stats(safe_predicted, corrections_caused=1)
+            self._update_gesture_stats(safe_correct, corrections_received=1)
+            return {
+                "success": True,
+                "correction": {
+                    "correction_id": correction["correction_id"],
+                    "predicted_gesture_id": safe_predicted,
+                    "correct_gesture_id": safe_correct,
+                    "stored_signature": bool(signature),
+                },
+                "message": "Correction saved to your personalized Custom Gesture memory.",
+            }
+
+    def list_corrections(self, limit: int = 20) -> Dict[str, Any]:
+        with self._lock:
+            corrections = self._learning.list_corrections(limit)
+            for item in corrections:
+                item.pop("signature", None)
+            return {"success": True, "corrections": corrections}
+
+    def accept_pending_variations(self, gesture_id: Any) -> Dict[str, Any]:
+        with self._lock:
+            safe_id = sanitize_gesture_name(gesture_id)
+            metadata = self._load_metadata(safe_id)
+            if metadata is None:
+                return {"success": False, "error": "Custom gesture not found."}
+            accepted = self._learning.accept_pending_variations(
+                gesture_dir=self._gesture_dir(safe_id),
+                gesture_id=safe_id,
+                gesture_name=str(metadata.get("gesture_name", safe_id)),
+                existing_variation_count=self._variation_count(safe_id),
+            )
+            if not accepted:
+                return {
+                    "success": False,
+                    "error": "No pending variations are ready yet. Keep using the gesture; repeated stable variations will be proposed.",
+                }
+            combined = self._load_sample_features(safe_id) + self._load_variation_features(safe_id)
+            prototype = mean_vector(combined)
+            metadata.update({
+                "prototype": prototype,
+                "feature_count": len(prototype),
+                "variation_count": self._variation_count(safe_id),
+            })
+            saved = self._save_metadata(metadata)
+            self._update_gesture_stats(safe_id, variations_accepted=len(accepted))
+            self._prediction_buffer.clear()
+            return {
+                "success": True,
+                "accepted": accepted,
+                "gesture": self._public_record(saved),
+            }
+
+    def discard_pending_variations(self, gesture_id: Any) -> Dict[str, Any]:
+        with self._lock:
+            safe_id = sanitize_gesture_name(gesture_id)
+            if self._load_metadata(safe_id) is None:
+                return {"success": False, "error": "Custom gesture not found."}
+            discarded = self._learning.discard_pending_variations(self._gesture_dir(safe_id), safe_id)
+            if discarded:
+                self._update_gesture_stats(safe_id, variations_ignored=1)
+                self._invalidate_cache()
+            return {"success": True, "discarded": discarded}
+
+    def evolution_details(self, gesture_id: Any) -> Dict[str, Any]:
+        with self._lock:
+            safe_id = sanitize_gesture_name(gesture_id)
+            metadata = self._load_metadata(safe_id)
+            if metadata is None:
+                return {"success": False, "error": "Custom gesture not found."}
+            gesture = self._load_cache().get(safe_id) or {}
+            prototype = gesture.get("prototype") or metadata.get("prototype", [])
+            mirror = self._normalize_hand(metadata.get("hand", "either")) == "either"
+
+            pending = []
+            for cluster in self._learning.load_pending_variations(self._gesture_dir(safe_id)):
+                similarity = (
+                    best_similarity(cluster.get("centroid", []), [prototype], self.max_match_distance, mirror=mirror)
+                    if prototype
+                    else 0.0
+                )
+                pending.append({
+                    "cluster_id": cluster.get("cluster_id", ""),
+                    "observed_count": int(cluster.get("count", 0) or 0),
+                    "similarity_to_gesture": round(similarity * 100.0, 1),
+                    "ready": int(cluster.get("count", 0) or 0) >= self._learning.evolution_min_observations,
+                    "first_seen": cluster.get("first_seen", ""),
+                    "last_seen": cluster.get("last_seen", ""),
+                })
+
+            variations = []
+            for path in self._variation_paths(safe_id):
+                try:
+                    payload = self._read_json(path)
+                    similarity = (
+                        best_similarity(payload.get("features", []), [prototype], self.max_match_distance, mirror=mirror)
+                        if prototype
+                        else 0.0
+                    )
+                    variations.append({
+                        "variation_id": payload.get("variation_id", os.path.basename(path)),
+                        "accepted_at": payload.get("accepted_at", ""),
+                        "observed_count": int(payload.get("observed_count", 0) or 0),
+                        "similarity_to_gesture": round(similarity * 100.0, 1),
+                    })
+                except Exception:
+                    continue
+
+            stats = metadata.get("learning_stats") if isinstance(metadata.get("learning_stats"), dict) else {}
+            detections = int(stats.get("detections", 0) or 0)
+            caused = int(stats.get("corrections_caused", 0) or 0)
+            accuracy = (
+                round(detections / max(1, detections + caused) * 100.0, 1)
+                if (detections + caused) > 0
+                else None
+            )
+            corrections = self._learning.corrections_for_gesture(safe_id)
+            for group in corrections.values():
+                for item in group:
+                    item.pop("signature", None)
+            return {
+                "success": True,
+                "evolution": {
+                    "gesture_id": safe_id,
+                    "gesture_name": metadata.get("gesture_name", safe_id),
+                    "original_samples": int(metadata.get("sample_count", 0) or 0),
+                    "target_samples": int(metadata.get("target_samples", 0) or 0),
+                    "variations": variations,
+                    "pending": pending,
+                    "stats": {
+                        "detections": detections,
+                        "corrections_caused": caused,
+                        "corrections_received": int(stats.get("corrections_received", 0) or 0),
+                        "corrections_applied": int(stats.get("corrections_applied", 0) or 0),
+                        "variations_accepted": int(stats.get("variations_accepted", 0) or 0),
+                        "variations_ignored": int(stats.get("variations_ignored", 0) or 0),
+                        "candidates_learned": int(stats.get("candidates_learned", 0) or 0),
+                        "recognition_accuracy": accuracy,
+                        "last_detected_at": stats.get("last_detected_at", ""),
+                    },
+                    "corrections": corrections,
+                },
+            }
 
     def overlay_lines(self) -> List[str]:
         """Small status summary for the camera frame overlay."""

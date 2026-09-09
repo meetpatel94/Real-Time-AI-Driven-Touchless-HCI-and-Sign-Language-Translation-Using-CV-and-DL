@@ -86,6 +86,30 @@ class Config:
     CUSTOM_GESTURE_SMOOTHING_WINDOW = 6
     CUSTOM_GESTURE_MIN_TRACKING_QUALITY = 0.90
 
+    # Custom Gesture self-learning (conservative; Custom Gestures only).
+    # Unknown gesture discovery: repeated stable unknown observations are
+    # clustered into candidates the user must explicitly approve.
+    CUSTOM_GESTURE_LEARNING_ENABLED = True
+    CUSTOM_GESTURE_CANDIDATE_MIN_OBSERVATIONS = 8
+    CUSTOM_GESTURE_CANDIDATE_CLUSTER_THRESHOLD = 0.85
+    CUSTOM_GESTURE_CANDIDATE_TTL_SECONDS = 300
+    CUSTOM_GESTURE_CANDIDATE_STABILITY_WINDOW = 8
+    CUSTOM_GESTURE_CANDIDATE_STABILITY_THRESHOLD = 0.05
+    CUSTOM_GESTURE_CANDIDATE_MAX_OBSERVATIONS = 48
+    CUSTOM_GESTURE_IGNORED_SIGNATURE_TTL_DAYS = 14
+    # Mistake memory: personalized corrections for the custom matcher only.
+    CUSTOM_GESTURE_CORRECTION_MIN_EVIDENCE = 1.0
+    CUSTOM_GESTURE_CORRECTION_SIGNATURE_THRESHOLD = 0.85
+    CUSTOM_GESTURE_CORRECTION_MAX_AGE_DAYS = 90
+    CUSTOM_GESTURE_CORRECTION_MAX_STORED = 500
+    # Gesture evolution: valid user variations of an existing gesture.
+    CUSTOM_GESTURE_EVOLUTION_MIN_CONFIDENCE = 0.88
+    CUSTOM_GESTURE_EVOLUTION_MIN_SIMILARITY = 0.75
+    CUSTOM_GESTURE_EVOLUTION_MAX_SIMILARITY = 0.98
+    CUSTOM_GESTURE_EVOLUTION_NOVELTY_THRESHOLD = 0.97
+    CUSTOM_GESTURE_EVOLUTION_MIN_OBSERVATIONS = 3
+    CUSTOM_GESTURE_EVOLUTION_MAX_PENDING_CLUSTERS = 4
+
     # Human-adaptive persistence. The base model, A-Z dataset and webcam
     # frames remain local; only derived personalization documents use MongoDB.
     DEFAULT_PROFILE_ID = _env_text(("GESTUREFORGE_PROFILE_ID",), "local-user")
