@@ -70,6 +70,17 @@ class Config:
     CLASS_NAMES_JSON_PATH = os.path.join(MODEL_DIR, "class_names.json")
     RECOGNITION_CONFIDENCE_THRESHOLD = 0.70
 
+    # Custom Gesture Library (isolated from A-Z model and global predictions)
+    CUSTOM_GESTURE_BASE_DIR = os.path.join(BASE_DIR, "data", "custom_gestures")
+    CUSTOM_GESTURE_DEFAULT_SAMPLES = 30
+    CUSTOM_GESTURE_MIN_READY_SAMPLES = 3
+    CUSTOM_GESTURE_CAPTURE_INTERVAL = 0.12
+    CUSTOM_GESTURE_SIMILARITY_THRESHOLD = 0.85
+    CUSTOM_GESTURE_MAX_MATCH_DISTANCE = 0.45
+    CUSTOM_GESTURE_STABILITY_FRAMES = 3
+    CUSTOM_GESTURE_SMOOTHING_WINDOW = 6
+    CUSTOM_GESTURE_MIN_TRACKING_QUALITY = 0.90
+
     # Human-adaptive persistence. The base model, A-Z dataset and webcam
     # frames remain local; only derived personalization documents use MongoDB.
     DEFAULT_PROFILE_ID = _env_text(("GESTUREFORGE_PROFILE_ID",), "local-user")

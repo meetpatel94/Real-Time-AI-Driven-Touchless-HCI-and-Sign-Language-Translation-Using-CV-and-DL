@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Custom Gestures - GestureForge AI{% endblock %}
+{% block page_title %}🧩 Custom Gestures{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sign_recognition.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_gestures.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="custom-gesture-page">
+    <section class="custom-gesture-hero card">
+        <div>
+            <span class="custom-eyebrow">Isolated user-defined gesture library</span>
+            <h3>Create hand gestures without changing A-Z recognition</h3>
+            <p>
+                Capture MediaPipe landmark samples, save them in their own folder, and test them only inside this Custom Gestures workspace.
+                Existing Live Recognition, Word Prediction, Translation, Air Mouse and Sign Alphabet behavior stays unchanged.
+            </p>
+        </div>
+        <div class="custom-hero-actions">
+            <button id="btn-show-create" class="btn-toggle active custom-primary-btn" type="button">+ Create Gesture</button>
+            <button id="btn-start-live" class="btn-toggle custom-secondary-btn" type="button">▶ Live Custom Recognition</button>
+            <button id="btn-stop-custom-mode" class="btn-toggle custom-secondary-btn" type="button">⏹ Stop Custom Mode</button>
+        </div>
+    </section>
+
+    <div id="custom-toast" class="custom-toast" role="status" aria-live="polite" hidden></div>
+
+    <section id="create-panel" class="card create-panel" hidden>
+        <div class="custom-section-heading">
+            <div>
+                <span class="custom-eyebrow">Create Gesture</span>
+                <h3>Capture landmark samples</h3>
+            </div>
+            <button id="btn-cancel-create" class="custom-icon-btn" type="button" aria-label="Close create form">×</button>
+        </div>
+
+        <form id="create-gesture-form" class="custom-form">
+            <label for="gesture-name">
+                Gesture Name
+                <input id="gesture-name" name="gesture_name" type="text" maxlength="80" autocomplete="off" placeholder="hi" required>
+            </label>
+            <label for="gesture-description">
+                Description
+                <input id="gesture-description" name="description" type="text" maxlength="160" autocomplete="off" placeholder="Greeting">
+            </label>
+            <label for="gesture-hand">
+                Hand
+                <select id="gesture-hand" name="hand">
+                    <option value="right">Right</option>
+                    <option value="left">Left</option>
+                    <option value="either" selected>Either</option>
+                </select>
+            </label>
+            <label for="gesture-samples">
+                Number of Samples
+                <input id="gesture-samples" name="target_samples" type="number" min="1" max="300" value="30" step="1">
+            </label>
+            <div class="custom-form-actions">
+                <button id="btn-start-capture" class="btn-toggle active" type="submit">Start Capture</button>
+                <span class="custom-form-note">Tip: turn on the camera from the sidebar, then hold the gesture steady.</span>
+            </div>
+        </form>
+    </section>
+
+    <div class="custom-main-layout">
+        <div class="custom-left-column">
+            <section class="card">
+                <div class="custom-camera-header">
+                    <div>
+                        <span class="custom-eyebrow">Camera</span>
+                        <h3>Capture / Test Feed</h3>
+                    </div>
+                    <div class="custom-badge-row">
+                        <span id="custom-mode-badge" class="badge">IDLE</span>
+                        <span id="custom-hand-badge" class="badge badge-danger">NO HAND</span>
+                    </div>
+                </div>
+                <div class="feed-container custom-feed-container">
+                    <img src="{{ url_for('camera.video_feed') }}" alt="Custom Gesture Camera Stream">
+                </div>
+                <div class="status-pill-strip custom-status-strip">
+                    <div><span>MODE:</span> <strong id="custom-mode-value">Idle</strong></div>
+                    <div><span>HAND:</span> <strong id="custom-hand-value">None</strong></div>
+                    <div><span>THRESHOLD:</span> <strong id="custom-threshold-value">85%</strong></div>
+                    <div><span>STABILITY:</span> <strong id="custom-stability-value">0 / 3</strong></div>
+                </div>
+            </section>
+
+            <section class="card custom-progress-card">
+                <div class="custom-section-heading">
+                    <div>
+                        <span class="custom-eyebrow">Capture Progress</span>
+                        <h3 id="capture-title">No active capture</h3>
+                    </div>
+                    <span id="capture-status-badge" class="badge">IDLE</span>
+                </div>
+                <div class="custom-progress-track" aria-label="Sample capture progress">
+                    <span id="capture-progress-bar" style="width: 0%;"></span>
+                </div>
+                <div class="custom-progress-row">
+                    <span id="capture-count-label">0 / 30 samples</span>
+                    <strong id="capture-progress-label">0%</strong>
+                </div>
+                <p id="capture-message" class="custom-muted-text">Create a gesture to begin collecting landmark samples.</p>
+            </section>
+        </div>
+
+        <aside class="custom-right-column">
+            <section class="card custom-test-card">
+                <div class="custom-section-heading">
+                    <div>
+                        <span class="custom-eyebrow">Custom Gesture Recognition</span>
+                        <h3>Live / Test Result</h3>
+                    </div>
+                    <span id="test-status-badge" class="badge">WAITING</span>
+                </div>
+                <div class="custom-live-result">
+                    <span class="custom-live-label">Custom Gesture</span>
+                    <div id="custom-live-label" class="hero-prediction custom-hero-prediction">Unknown</div>
+                    <div class="custom-confidence-row">
+                        <span>Confidence:</span>
+                        <strong id="custom-live-confidence">0.0%</strong>
+                    </div>
+                </div>
+                <div class="test-comparison-box custom-test-comparison">
+                    <div class="compare-item">
+                        <span class="compare-label">Expected</span>
+                        <span id="custom-expected" class="compare-val">—</span>
+                    </div>
+                    <div class="compare-divider">↓</div>
+                    <div class="compare-item">
+                        <span class="compare-label">Detected</span>
+                        <span id="custom-detected" class="compare-val">Unknown</span>
+                    </div>
+                    <div class="compare-item">
+                        <span class="compare-label">Status</span>
+                        <span id="custom-match-status" class="compare-badge badge">—</span>
+                    </div>
+                </div>
+                <p id="custom-recognition-message" class="custom-muted-text">Start a test from a gesture card or use Live Custom Recognition.</p>
+            </section>
+
+            <section class="card">
+                <div class="custom-section-heading">
+                    <div>
+                        <span class="custom-eyebrow">Recent Custom Matches</span>
+                        <h3>Session History</h3>
+                    </div>
+                </div>
+                <div id="custom-history-list" class="history-list">
+                    <div class="custom-empty-state">No stable custom matches yet.</div>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <section class="card custom-library-section">
+        <div class="custom-section-heading">
+            <div>
+                <span class="custom-eyebrow">Custom Gesture Library</span>
+                <h3>Saved custom gestures</h3>
+            </div>
+            <button id="btn-refresh-library" class="btn-toggle custom-refresh-btn" type="button">↻ Refresh</button>
+        </div>
+        <div id="custom-gesture-list" class="custom-gesture-grid">
+            <div class="custom-empty-state">No custom gestures created yet.</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/custom_gestures/custom_gestures.js') }}"></script>
+{% endblock %}

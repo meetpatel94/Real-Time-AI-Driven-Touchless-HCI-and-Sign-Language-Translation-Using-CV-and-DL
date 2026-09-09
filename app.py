@@ -20,6 +20,7 @@ def create_app():
     from routes.studio_routes import studio_bp
     from routes.sentence_routes import sentence_bp
     from routes.translation_routes import translation_bp
+    from routes.custom_gesture_routes import custom_gesture_bp
     from routes.adaptive_routes import adaptive_bp
     from routes.personalization_routes import personalization_bp
 
@@ -32,6 +33,7 @@ def create_app():
     app.register_blueprint(studio_bp)
     app.register_blueprint(sentence_bp)
     app.register_blueprint(translation_bp)
+    app.register_blueprint(custom_gesture_bp)
     app.register_blueprint(adaptive_bp)
     app.register_blueprint(personalization_bp)
 
