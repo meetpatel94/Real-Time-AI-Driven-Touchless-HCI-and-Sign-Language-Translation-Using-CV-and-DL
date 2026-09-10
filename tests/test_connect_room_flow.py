@@ -8,7 +8,7 @@ only an opaque session token and public identity are sent on the WebSocket.
 import json
 import unittest
 
-from services.connect_room_service import connect_room_service
+from services.connect_room_service import MAX_GESTURE_HISTORY, connect_room_service
 
 
 ROOM_PASSWORD = "room-pass-123"
@@ -313,6 +313,276 @@ class ConnectRoomFlowTest(unittest.TestCase):
         self.assertEqual(ws.messages("room_snapshot"), [])
         self.assertEqual(ws.messages("error")[-1]["error"], "bad_request")
         self.assertNotIn(ROOM_PASSWORD, json.dumps(ws.sent))
+
+
+def room_for(code):
+    with connect_room_service._lock:
+        return connect_room_service._rooms.get(code)
+
+
+def received_gestures(code, client_id):
+    """Server-side per-participant remote gesture history.
+
+    This is exactly what the OTHER USER -> GESTURE HISTORY card renders for
+    ``client_id`` (the gestures it received from the other participant).
+    """
+    with connect_room_service._lock:
+        room = connect_room_service._rooms.get(code)
+        assert room is not None and client_id in room.participants, \
+            f"no participant {client_id} in room {code}"
+        return [dict(item) for item in room.participants[client_id].received_gestures]
+
+
+def peers_last_gesture(device, client_id):
+    """The peer summary's ``last_gesture`` field as seen by ``device``."""
+    messages = device.messages("peers")
+    assert messages, "no peers summary delivered"
+    for participant in messages[-1]["participants"]:
+        if participant["client_id"] == client_id:
+            return participant["last_gesture"]
+    return None
+
+
+class ConnectGestureHistoryTest(unittest.TestCase):
+    """Per-participant gesture history for the two-person relay.
+
+    LAST GESTURE stays the single most recent received gesture (peer summary
+    ``last_gesture``); GESTURE HISTORY is the bounded, chronological,
+    duplicate-free list of every gesture received from the other participant.
+    """
+
+    def setUp(self):
+        reset_service()
+
+    def tearDown(self):
+        reset_service()
+
+    def _two_devices(self):
+        ws_a = FakeWs()
+        ws_b = FakeWs()
+        _, snapshot = create_room(ws_a)
+        self.assertTrue(join_room(ws_b, snapshot["code"])["success"])
+        return ws_a, ws_b, snapshot["code"]
+
+    def _gesture(self, event_id, gesture_id, meaning, **extra):
+        payload = {
+            "type": "gesture",
+            "id": event_id,
+            "gesture_id": gesture_id,
+            "meaning": meaning,
+            "symbol": extra.pop("symbol", "✋"),
+            "kind": extra.pop("kind", "pose"),
+            "confidence": extra.pop("confidence", 0.95),
+        }
+        payload.update(extra)
+        return payload
+
+    # 1. User 1 sends gesture A -> User 2 receives A.
+    def test_first_gesture_lands_in_remote_history_and_last_gesture(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture("ev-a1", "five", "Hii", symbol="🖐️"))
+
+        received = [m for m in ws_b.messages("gesture") if m["from"] == "device-a-client-id"]
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]["meaning"], "Hii")
+
+        history = received_gestures(code, "device-b-client-id")
+        self.assertEqual([g["meaning"] for g in history], ["Hii"])
+        # The creator has not received anything yet.
+        self.assertEqual(received_gestures(code, "device-a-client-id"), [])
+        self.assertEqual(peers_last_gesture(ws_b, "device-a-client-id")["meaning"], "Hii")
+
+    # 2. User 1 sends gesture B -> User 2 still has A in history, B is Last.
+    def test_second_gesture_keeps_first_in_history_and_becomes_last(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture("ev-a1", "one", "Hii", symbol="☝️"))
+        relay(ws_a, self._gesture("ev-a2", "two", "bee", symbol="✌️"))
+
+        history = received_gestures(code, "device-b-client-id")
+        self.assertEqual([g["meaning"] for g in history], ["Hii", "bee"])
+        self.assertEqual(peers_last_gesture(ws_b, "device-a-client-id")["meaning"], "bee")
+
+    # 3. User 1 sends A, B, C -> history holds A, B, C; Last Gesture is C.
+    def test_history_accumulates_in_chronological_order(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture("ev-a1", "one", "A", symbol="☝️"))
+        relay(ws_a, self._gesture("ev-a2", "two", "B", symbol="✌️"))
+        relay(ws_a, self._gesture("ev-a3", "three", "C", symbol="🤟"))
+
+        history = received_gestures(code, "device-b-client-id")
+        self.assertEqual([g["meaning"] for g in history], ["A", "B", "C"])
+        self.assertEqual([g["id"] for g in history], ["ev-a1", "ev-a2", "ev-a3"])
+        self.assertLessEqual(history[0]["ts"], history[1]["ts"])
+        self.assertLessEqual(history[1]["ts"], history[2]["ts"])
+        self.assertEqual(peers_last_gesture(ws_b, "device-a-client-id")["meaning"], "C")
+
+    # 4. User 2 sends gesture X -> User 1 receives X in their own history.
+    def test_user2_gesture_reaches_user1_history(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_b, self._gesture("ev-b1", "thumbs_up", "Thank you", symbol="👍"))
+
+        received = [m for m in ws_a.messages("gesture") if m["from"] == "device-b-client-id"]
+        self.assertEqual(len(received), 1)
+        self.assertEqual([g["meaning"] for g in received_gestures(code, "device-a-client-id")],
+                         ["Thank you"])
+        self.assertEqual(peers_last_gesture(ws_a, "device-b-client-id")["meaning"], "Thank you")
+
+    # 5. The two per-participant histories never mix each other's gestures.
+    def test_histories_remain_separate_per_participant(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture("ev-a1", "one", "Hii"))
+        relay(ws_a, self._gesture("ev-a2", "two", "bee"))
+        relay(ws_b, self._gesture("ev-b1", "five", "Hello"))
+
+        a_history = received_gestures(code, "device-a-client-id")
+        b_history = received_gestures(code, "device-b-client-id")
+        self.assertEqual([g["meaning"] for g in a_history], ["Hello"])
+        self.assertEqual([g["meaning"] for g in b_history], ["Hii", "bee"])
+        for gesture in a_history:
+            self.assertEqual(gesture["from"], "device-b-client-id")
+        for gesture in b_history:
+            self.assertEqual(gesture["from"], "device-a-client-id")
+
+    # 6. The shared session timeline still carries events from both users,
+    #    and text messages never enter a gesture history.
+    def test_timeline_keeps_both_users_and_text_stays_out_of_gesture_history(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture("ev-a1", "five", "Hii"))
+        relay(ws_b, self._gesture("ev-b1", "two", "bee"))
+        relay(ws_a, {"type": "message", "id": "tx-1", "text": "Nice one"})
+
+        with connect_room_service._lock:
+            timeline = list(room_for(code).history)
+        self.assertEqual([event["type"] for event in timeline], ["gesture", "gesture", "text"])
+        self.assertEqual({event["from"] for event in timeline[:2]},
+                         {"device-a-client-id", "device-b-client-id"})
+        self.assertEqual(timeline[2]["text"], "Nice one")
+        self.assertEqual([g["meaning"] for g in received_gestures(code, "device-a-client-id")],
+                         ["bee"])
+        self.assertEqual([g["meaning"] for g in received_gestures(code, "device-b-client-id")],
+                         ["Hii"])
+
+    # 7. An accidentally duplicated WebSocket event creates one entry only.
+    def test_duplicate_gesture_event_creates_single_history_entry(self):
+        ws_a, ws_b, code = self._two_devices()
+        event = self._gesture("same-event", "thumbs_up", "Okay", symbol="👍")
+        relay(ws_a, event)
+        relay(ws_a, dict(event))
+
+        received = [m for m in ws_b.messages("gesture") if m["id"] == "same-event"]
+        self.assertEqual(len(received), 1)
+        self.assertEqual(len(received_gestures(code, "device-b-client-id")), 1)
+
+    # 8. The per-participant history is bounded by MAX_HISTORY (oldest drop).
+    def test_history_respects_max_history_limit(self):
+        self.assertGreaterEqual(MAX_GESTURE_HISTORY, 10)
+        ws_a, ws_b, code = self._two_devices()
+        total = MAX_GESTURE_HISTORY + 5
+        for index in range(1, total + 1):
+            relay(ws_a, self._gesture(f"ev-{index:04d}", f"g{index}", f"Gesture {index}"))
+
+        history = received_gestures(code, "device-b-client-id")
+        self.assertEqual(len(history), MAX_GESTURE_HISTORY)
+        self.assertEqual(history[0]["id"], f"ev-{total - MAX_GESTURE_HISTORY + 1:04d}")
+        self.assertEqual(history[-1]["id"], f"ev-{total:04d}")
+        dropped = {f"ev-{index:04d}" for index in range(1, total - MAX_GESTURE_HISTORY + 1)}
+        self.assertFalse(dropped & {g["id"] for g in history})
+
+    # 9. History items keep everything the existing replay mechanism needs.
+    def test_history_items_preserve_replay_and_identity_fields(self):
+        ws_a, ws_b, code = self._two_devices()
+        relay(ws_a, self._gesture(
+            "ev-custom-1", "cg-thankyou", "Thank you very much",
+            symbol="✋", kind="custom", confidence=0.93, has_replay=True,
+        ))
+
+        (item,) = received_gestures(code, "device-b-client-id")
+        # Existing replay path: openReplay(gesture_id) -> GET /api/connect/replay/<gesture_id>.
+        self.assertEqual(item["gesture_id"], "cg-thankyou")
+        self.assertEqual(item["kind"], "custom")
+        self.assertTrue(item["has_replay"])
+        # Session/participant identity for the history row.
+        self.assertEqual(item["meaning"], "Thank you very much")
+        self.assertEqual(item["confidence"], 0.93)
+        self.assertEqual(item["from"], "device-a-client-id")
+        self.assertEqual(item["sender_name"], "Rahul")
+        self.assertEqual(item["sender_user"], "User 1")
+        self.assertEqual(item["sender_role"], "creator")
+        self.assertEqual(item["symbol"], "✋")
+        self.assertEqual(item["type"], "gesture")
+        self.assertGreater(item["ts"], 0)
+
+    # 10a. A network drop + resume keeps the same-session history.
+    def test_resume_preserves_remote_history_for_same_session(self):
+        ws_a = FakeWs()
+        ws_b = FakeWs()
+        _, snapshot = create_room(ws_a)
+        auth_b = join_room(ws_b, snapshot["code"])
+        self.assertTrue(auth_b["success"])
+        code = snapshot["code"]
+
+        relay(ws_a, self._gesture("ev-a1", "five", "Hii"))
+        relay(ws_b, self._gesture("ev-b1", "two", "bee"))
+
+        connect_room_service.disconnect(ws_b)  # drop — the seat (and history) stays
+        ws_b_again = FakeWs()
+        attach(ws_b_again, auth_b, "resume")
+        resumed = ws_b_again.messages("room_snapshot")[-1]
+
+        self.assertEqual([g["meaning"] for g in resumed["gesture_history"]], ["Hii"])
+        self.assertEqual([g["meaning"] for g in received_gestures(code, "device-a-client-id")],
+                         ["bee"])
+        # The shared timeline survived the drop as well.
+        self.assertEqual(len(resumed["history"]), 2)
+
+    # 10b. A fresh joiner starts with an empty remote history even if the
+    #      creator gestured while alone.
+    def test_join_starts_with_empty_remote_history(self):
+        ws_a = FakeWs()
+        ws_b = FakeWs()
+        _, snapshot = create_room(ws_a)
+        code = snapshot["code"]
+        relay(ws_a, self._gesture("ev-solo", "five", "Hello"))
+
+        self.assertTrue(join_room(ws_b, code)["success"])
+        joined = ws_b.messages("room_snapshot")[-1]
+        self.assertEqual(joined["gesture_history"], [])
+
+        relay(ws_a, self._gesture("ev-a2", "two", "bee"))
+        self.assertEqual([g["meaning"] for g in received_gestures(code, "device-b-client-id")],
+                         ["bee"])
+
+    # 10c. Leave/rejoin resets per-occupant views and new rooms start clean.
+    def test_leave_and_rejoin_does_not_leak_previous_occupant_history(self):
+        ws_a = FakeWs()
+        ws_b = FakeWs()
+        _, snapshot = create_room(ws_a)
+        code = snapshot["code"]
+        self.assertTrue(join_room(ws_b, code)["success"])
+
+        relay(ws_a, self._gesture("ev-a1", "five", "Hii"))  # joiner's view
+        relay(ws_b, self._gesture("ev-b1", "two", "bee"))   # creator's view
+
+        relay(ws_b, {"type": "leave"})
+        # The creator's "Other User" view of the now-empty seat resets.
+        self.assertEqual(received_gestures(code, "device-a-client-id"), [])
+
+        ws_b_again = FakeWs()
+        self.assertTrue(join_room(ws_b_again, code)["success"])
+        rejoined = ws_b_again.messages("room_snapshot")[-1]
+        self.assertEqual(rejoined["gesture_history"], [])
+        self.assertEqual(received_gestures(code, "device-b-client-id"), [])
+
+        # A brand-new room never inherits the old room's traffic.
+        ws_c = FakeWs()
+        ws_d = FakeWs()
+        _, snapshot2 = create_room(ws_c, client_id="device-c-client-id")
+        self.assertTrue(join_room(ws_d, snapshot2["code"], client_id="device-d-client-id")["success"])
+        relay(ws_c, self._gesture("ev-newroom", "three", "I Love You"))
+        d_history = received_gestures(snapshot2["code"], "device-d-client-id")
+        self.assertEqual([g["meaning"] for g in d_history], ["I Love You"])
+        self.assertNotIn("Hii", [g["meaning"] for g in d_history])
+        self.assertNotIn("bee", [g["meaning"] for g in d_history])
 
 
 if __name__ == "__main__":

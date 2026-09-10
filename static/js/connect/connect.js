@@ -10,6 +10,10 @@
 
     var LS_ROOM = 'gf_connect_room';
     var LS_CLIENT = 'gf_connect_client_id';
+    // Per-participant gesture history cap (mirrors the server's
+    // CONNECT_GESTURE_HISTORY_LIMIT). Keeps the in-memory session history
+    // bounded; oldest entries drop first. No persistence beyond the session.
+    var MAX_HISTORY = 100;
     var MAX_DISPLAY_NAME_LENGTH = 40;
     var MIN_ROOM_PASSWORD_LENGTH = 4;
     var MAX_ROOM_PASSWORD_LENGTH = 128;
@@ -38,6 +42,17 @@
         peers: [],
         myPeer: null,
         msgIds: new Set(),
+        // Per-participant gesture history for this room/session (in-memory only):
+        //   remoteGestures — gestures received from the other participant,
+        //                    shown in OTHER USER → GESTURE HISTORY (newest item
+        //                    is also the LAST GESTURE above the list).
+        //   myGestures     — gestures sent by this participant, shown in
+        //                    YOU → MY GESTURE HISTORY.
+        // Both are capped at MAX_HISTORY and de-duplicated by event id so an
+        // accidentally duplicated WebSocket event can never create two rows.
+        remoteGestures: [],
+        myGestures: [],
+        gestureIds: new Set(),
         mappings: { builtins: [], customs: [], ws_path: '/ws/connect' },
         settings: {
             hold_seconds: 2.0,
@@ -294,6 +309,128 @@
     }
 
     // ------------------------------------------------------------------
+    // Per-participant gesture history
+    //
+    // LAST GESTURE  = the single most recent gesture received from the other
+    //                 participant (driven by updateOtherLastGesture).
+    // GESTURE HISTORY = every recent gesture received, kept per participant,
+    //                 oldest → newest with the newest item highlighted.
+    // Only accepted gesture events are recorded here — text messages stay in
+    // the shared timeline and are never classified as gestures.
+    // ------------------------------------------------------------------
+    function recordReceivedGesture(msg) {
+        if (!msg || msg.type !== 'gesture') return false;
+        if (msg.id) {
+            // Duplicate suppression: the server already sends each recognized
+            // gesture exactly once (stable hold + 2s hold); this guards the
+            // same event id being delivered twice on the wire.
+            if (conn.gestureIds.has(msg.id)) return false;
+            conn.gestureIds.add(msg.id);
+            if (conn.gestureIds.size > MAX_HISTORY * 4) {
+                // Keep the id set bounded by rebuilding it from the capped
+                // history lists (oldest ids drop with the oldest entries).
+                conn.gestureIds = new Set();
+                conn.myGestures.concat(conn.remoteGestures).forEach(function (m) {
+                    if (m.id) conn.gestureIds.add(m.id);
+                });
+            }
+        }
+        var mine = !!(conn.room && msg.from === conn.room.client_id);
+        var list = mine ? conn.myGestures : conn.remoteGestures;
+        list.push(msg);
+        if (list.length > MAX_HISTORY) list.splice(0, list.length - MAX_HISTORY);
+        return true;
+    }
+
+    function renderGestureHistory(items, container, emptyEl, countEl, senderFallback) {
+        if (!container || !countEl) return;
+        container.innerHTML = '';
+        countEl.textContent = String(items.length);
+        if (!items.length) {
+            if (emptyEl) { emptyEl.hidden = false; container.appendChild(emptyEl); }
+            return;
+        }
+        if (emptyEl) emptyEl.hidden = true;
+        items.forEach(function (item, index) {
+            var latest = index === items.length - 1;
+            var sender = item.sender_name || item.sender_user || senderFallback || 'Participant';
+            var conf = item.confidence ? Math.round(item.confidence * 100) + '%' : '';
+            var meta = [sender, item.kind === 'custom' ? 'custom gesture' : 'gesture', conf]
+                .filter(Boolean).join(' · ');
+            var node = document.createElement('div');
+            node.className = 'connect-history-item' + (latest ? ' is-latest' : '');
+            node.innerHTML =
+                '<span class="connect-history-symbol">' + escapeHtml(item.symbol || '✋') + '</span>' +
+                '<div class="connect-history-main">' +
+                '  <div class="connect-history-head">' +
+                '    <span class="connect-history-index">' + (index + 1) + '</span>' +
+                '    <span class="connect-history-meaning">' + escapeHtml(item.meaning || item.gesture_id || '—') + '</span>' +
+                (latest ? '<span class="connect-history-latest">LATEST</span>' : '') +
+                '    <span class="connect-history-time">' + fmtTime(item.ts) + '</span>' +
+                '  </div>' +
+                '  <div class="connect-history-meta">' + escapeHtml(meta) + '</div>' +
+                (item.kind === 'custom' && item.has_replay
+                    ? '<button type="button" class="connect-secondary-btn connect-history-replay-btn">▶ Replay Gesture</button>'
+                    : '') +
+                '</div>';
+            // Reuse the existing replay mechanism (saved Custom Gesture sample).
+            var replayBtn = node.querySelector('.connect-history-replay-btn');
+            if (replayBtn) {
+                replayBtn.addEventListener('click', function () {
+                    openReplay(item.gesture_id, item);
+                });
+            }
+            container.appendChild(node);
+        });
+        // Chronological (oldest → newest): keep the newest item in view.
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function renderRemoteGestureHistory() {
+        renderGestureHistory(
+            conn.remoteGestures, el.otherGestureHistory, el.otherHistoryEmpty,
+            el.otherHistoryCount, 'Other user'
+        );
+    }
+
+    function renderMyGestureHistory() {
+        renderGestureHistory(
+            conn.myGestures, el.myGestureHistory, el.myHistoryEmpty,
+            el.myHistoryCount, 'You'
+        );
+    }
+
+    function rebuildGestureHistories(snapshot) {
+        conn.remoteGestures = [];
+        conn.myGestures = [];
+        conn.gestureIds.clear();
+        // Authoritative per-participant remote history for this session: a
+        // fresh joiner starts empty, a resumed participant gets theirs back.
+        (snapshot.gesture_history || []).forEach(function (item) {
+            recordReceivedGesture(item);
+        });
+        // My own sent gestures are recovered from the shared session timeline.
+        (snapshot.history || []).forEach(function (item) {
+            if (item && item.type === 'gesture' && conn.room && item.from === conn.room.client_id) {
+                recordReceivedGesture(item);
+            }
+        });
+        renderRemoteGestureHistory();
+        renderMyGestureHistory();
+        if (conn.remoteGestures.length) {
+            updateOtherLastGesture(conn.remoteGestures[conn.remoteGestures.length - 1]);
+        }
+    }
+
+    function resetGestureHistories() {
+        conn.remoteGestures = [];
+        conn.myGestures = [];
+        conn.gestureIds.clear();
+        renderRemoteGestureHistory();
+        renderMyGestureHistory();
+    }
+
+    // ------------------------------------------------------------------
     // Shared timeline (gesture and text events use the same stream)
     // ------------------------------------------------------------------
     function addTimelineRow(msg) {
@@ -370,10 +507,6 @@
         }
         messages.slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); })
             .forEach(function (msg) { addTimelineRow(msg); });
-        var remoteGestures = messages.filter(function (msg) {
-            return msg.type === 'gesture' && (!conn.room || msg.from !== conn.room.client_id);
-        });
-        if (remoteGestures.length) updateOtherLastGesture(remoteGestures[remoteGestures.length - 1]);
     }
 
     // ------------------------------------------------------------------
@@ -1209,6 +1342,7 @@
                 conn.peers = msg.participants || [];
                 applyPeers();
                 renderHistory(msg.history || []);
+                rebuildGestureHistories(msg);
                 setConnPill('open');
                 sendDeviceStatus();
                 break;
@@ -1218,7 +1352,14 @@
                 break;
             case 'gesture':
                 addTimelineRow(msg);
-                if (!conn.room || msg.from !== conn.room.client_id) updateOtherLastGesture(msg);
+                if (recordReceivedGesture(msg)) {
+                    if (conn.room && msg.from === conn.room.client_id) {
+                        renderMyGestureHistory();
+                    } else {
+                        updateOtherLastGesture(msg);
+                        renderRemoteGestureHistory();
+                    }
+                }
                 break;
             case 'text':
                 addTimelineRow(msg);
@@ -1285,6 +1426,9 @@
         conn.outbox = [];
         conn.pendingIntent = null;
         clearRoom();
+        // Never leak this room's per-participant history into the lobby or a
+        // future room.
+        resetGestureHistories();
         if (conn.ws) {
             try { conn.ws.close(); } catch (e) { /* ignore */ }
             conn.ws = null;
@@ -1339,6 +1483,7 @@
         };
         conn.room = null;
         clearRoom();
+        resetGestureHistories();
         queueIntent(conn.pendingIntent);
     }
 
@@ -1563,6 +1708,12 @@
         el.otherMeta = $('other-meta');
         el.btnReplayGesture = $('btn-replay-gesture');
         el.otherReplayNote = $('other-replay-note');
+        el.otherGestureHistory = $('other-gesture-history');
+        el.otherHistoryEmpty = $('other-history-empty');
+        el.otherHistoryCount = $('other-history-count');
+        el.myGestureHistory = $('my-gesture-history');
+        el.myHistoryEmpty = $('my-history-empty');
+        el.myHistoryCount = $('my-history-count');
         el.timeline = $('connect-timeline');
         el.timelineEmpty = $('timeline-empty');
         el.timelineCount = $('timeline-count');
