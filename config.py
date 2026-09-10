@@ -191,6 +191,10 @@ class Config:
     CONNECT_ROOM_CODE_LENGTH = 4
     CONNECT_ROOM_MAX_PARTICIPANTS = 2
     CONNECT_ROOM_HISTORY_LIMIT = 80          # Ephemeral in-memory catch-up
+    # Per-participant gesture history ("Other User -> Gesture History").
+    # Each participant keeps at most this many gestures received from the
+    # other participant for the life of the room; oldest entries drop first.
+    CONNECT_GESTURE_HISTORY_LIMIT = 100
     CONNECT_ROOM_IDLE_TTL_SECONDS = 1800     # Purge after 30 min w/o clients
     CONNECT_ROOM_MAX_AGE_SECONDS = 86400     # Hard 24h room lifetime
     CONNECT_ROOM_SWEEP_INTERVAL_SECONDS = 60

@@ -639,6 +639,147 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
     font-size: 1.5rem;
     font-weight: 800;
     color: var(--accent-green);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* last gesture block (most recent received gesture only) */
+.connect-last-gesture {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.connect-section-hint {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: none;
+    color: var(--text-muted);
+    opacity: 0.85;
+    margin-left: 0.35rem;
+}
+
+/* per-participant gesture history */
+.connect-history-section {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.connect-history-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.connect-history-count {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--accent-blue);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 0.08rem 0.5rem;
+    min-width: 1.5rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.connect-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 264px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.connect-history-item {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-dark);
+    padding: 0.55rem 0.75rem;
+}
+
+.connect-history-item.is-latest {
+    border-color: rgba(34, 197, 94, 0.55);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.connect-history-symbol {
+    font-size: 1.3rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 9px;
+    flex-shrink: 0;
+}
+
+.connect-history-main { min-width: 0; flex: 1; }
+
+.connect-history-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.connect-history-index {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.connect-history-meaning {
+    color: var(--accent-green);
+    font-weight: 700;
+    font-size: 0.92rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.connect-history-latest {
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--accent-green);
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 999px;
+    padding: 0.04rem 0.4rem;
+    flex-shrink: 0;
+}
+
+.connect-history-time {
+    margin-left: auto;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.connect-history-meta {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    margin-top: 0.12rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.connect-history-replay-btn {
+    margin-top: 0.45rem;
+    min-height: 34px;
 }
 
 /* timeline */
@@ -893,6 +1034,22 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
         gap: 0.3rem;
     }
 
+    /* Per-participant history: full-width cards, easy-tap replay buttons,
+       scrolling list instead of an excessively tall fixed container. */
+    .connect-history-list {
+        max-height: 224px;
+    }
+
+    .connect-history-item {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .connect-history-replay-btn {
+        width: 100%;
+        min-height: 42px;
+    }
+
     /* Header is shared with the desktop shell; hide secondary status
        badges so the Connect page title stays readable on small screens. */
     #header {
@@ -949,6 +1106,16 @@ body.connect-local-mode #sidebar .control-group[data-tooltip="Air Gesture + Glob
     .connect-other-meaning {
         font-size: 1.25rem;
         word-break: break-word;
+    }
+
+    .connect-history-item {
+        padding: 0.5rem 0.6rem;
+    }
+
+    .connect-history-symbol {
+        width: 36px;
+        height: 36px;
+        font-size: 1.15rem;
     }
 
     .connect-toast {

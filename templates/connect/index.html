@@ -170,6 +170,16 @@
                 </div>
                 <p class="connect-muted connect-actions-note">Camera and recognition run locally on your device.
                 The other participant receives only the recognized gesture and meaning.</p>
+
+                <div class="connect-history-section">
+                    <div class="connect-history-title">
+                        <span class="connect-eyebrow">My Gesture History <small class="connect-section-hint">sent by you, oldest → newest</small></span>
+                        <span id="my-history-count" class="connect-history-count">0</span>
+                    </div>
+                    <div id="my-gesture-history" class="connect-history-list">
+                        <div id="my-history-empty" class="connect-empty-state">Gestures you send will appear here in order.</div>
+                    </div>
+                </div>
             </div>
 
             <!-- ===== OTHER USER ===== -->
@@ -194,16 +204,29 @@
                         <span id="other-camera-badge" class="badge">⚪ CAMERA UNKNOWN</span>
                         <span id="other-recognition-badge" class="badge">⚪ RECOGNITION UNKNOWN</span>
                     </div>
-                    <span class="connect-eyebrow">Last Gesture</span>
-                    <div class="connect-other-main">
-                        <span id="other-symbol" class="connect-other-symbol">—</span>
-                        <div class="connect-other-copy">
-                            <div id="other-meaning" class="connect-other-meaning">—</div>
-                            <div id="other-meta" class="connect-muted">No gesture received yet</div>
+
+                    <div class="connect-last-gesture">
+                        <span class="connect-eyebrow">Last Gesture <small class="connect-section-hint">latest received</small></span>
+                        <div class="connect-other-main">
+                            <span id="other-symbol" class="connect-other-symbol">—</span>
+                            <div class="connect-other-copy">
+                                <div id="other-meaning" class="connect-other-meaning">—</div>
+                                <div id="other-meta" class="connect-muted">No gesture received yet</div>
+                            </div>
+                        </div>
+                        <button id="btn-replay-gesture" class="connect-secondary-btn" type="button" hidden>▶ Replay Gesture</button>
+                        <div id="other-replay-note" class="connect-muted" hidden></div>
+                    </div>
+
+                    <div class="connect-history-section">
+                        <div class="connect-history-title">
+                            <span class="connect-eyebrow">Gesture History <small class="connect-section-hint">all received, oldest → newest</small></span>
+                            <span id="other-history-count" class="connect-history-count">0</span>
+                        </div>
+                        <div id="other-gesture-history" class="connect-history-list">
+                            <div id="other-history-empty" class="connect-empty-state">Gestures received from this user will appear here in order.</div>
                         </div>
                     </div>
-                    <button id="btn-replay-gesture" class="connect-secondary-btn" type="button" hidden>▶ Replay Gesture</button>
-                    <div id="other-replay-note" class="connect-muted" hidden></div>
                 </div>
             </div>
         </div>

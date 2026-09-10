@@ -34,6 +34,10 @@ _MAX_GESTURE_MEANING_LENGTH = 180
 _MAX_GESTURE_SYMBOL_LENGTH = 32
 _MAX_EVENT_ID_LENGTH = 96
 _MAX_SEEN_EVENT_IDS = 240
+# Per-participant gesture history cap. A room only relays small recognized
+# events, so this bounded, in-memory deque is the entire session history:
+# oldest entries drop first once the limit is reached. No database involved.
+MAX_GESTURE_HISTORY = int(Config.CONNECT_GESTURE_HISTORY_LIMIT)
 _MAX_DISPLAY_NAME_LENGTH = 40
 _MIN_ROOM_PASSWORD_LENGTH = 4
 _MAX_ROOM_PASSWORD_LENGTH = 128
@@ -120,6 +124,11 @@ class Participant:
         self.camera_active = False
         self.recognition_active = False
         self.last_gesture: Optional[Dict[str, Any]] = None
+        # Gestures *received from the other participant* during this session —
+        # the server-side source of the "Other User -> Gesture History" list.
+        # A fresh participant (join or rejoin after a leave) starts empty; a
+        # disconnected participant keeps it until the room purges them.
+        self.received_gestures: Deque[Dict[str, Any]] = deque(maxlen=MAX_GESTURE_HISTORY)
         self.seen_event_ids: Deque[str] = deque(maxlen=_MAX_SEEN_EVENT_IDS)
         self.send_lock = threading.Lock()
 
@@ -191,8 +200,8 @@ class Room:
     def connected_count(self) -> int:
         return sum(1 for participant in self.participants.values() if participant.connected)
 
-    @property
     def peer_of(self, client_id: str) -> Optional[Participant]:
+        """Return the other participant of this two-person room, if present."""
         return next(
             (participant for cid, participant in self.participants.items() if cid != client_id),
             None,
@@ -211,6 +220,12 @@ class Room:
             "display_name": participant.display_name if participant else "",
             "participants": self._participant_summary(),
             "history": list(self.history),
+            # Per-participant remote gesture history (gestures this participant
+            # received from the other one).  This is the only history the
+            # resume path synchronizes — live events are relayed one at a time
+            # and appended locally, so the full history is never resent for
+            # every gesture.
+            "gesture_history": list(participant.received_gestures) if participant else [],
             "ts": time.time(),
         }
 
@@ -685,6 +700,14 @@ class ConnectRoomService:
         participant = room.participants.pop(client_id, None)
         if participant is not None:
             participant.detach()
+        # The leaving participant's received history dies with their seat, and
+        # the peer's view of *this* participant resets too: the next joiner
+        # starts with an empty "Other User" history instead of inheriting the
+        # previous occupant's gestures.  A plain disconnect (resume path)
+        # keeps the seat and therefore keeps the history.
+        peer = room.peer_of(client_id)
+        if peer is not None:
+            peer.received_gestures.clear()
         source = (room.code, client_id)
         if self._legacy_source == source:
             self._legacy_source = None
@@ -761,6 +784,34 @@ class ConnectRoomService:
             "ts": time.time(),
         }
 
+    def _record_accepted_gesture(
+        self,
+        room: Room,
+        participant: Participant,
+        message: Dict[str, Any],
+    ) -> None:
+        """Store an accepted gesture for the session and relay it to the room.
+
+        The event is appended to the *peer's* per-participant received history
+        so each browser can rebuild its "Other User -> Gesture History" list on
+        resume.  Only completed gesture events reach this path — text messages
+        relay separately — so the gesture history can never contain text.
+        """
+        participant.last_gesture = {
+            "gesture_id": message["gesture_id"],
+            "symbol": message["symbol"],
+            "meaning": message["meaning"],
+            "kind": message["kind"],
+            "confidence": message["confidence"],
+            "has_replay": message["has_replay"],
+            "ts": message["ts"],
+        }
+        peer = room.peer_of(participant.client_id)
+        if peer is not None:
+            peer.received_gestures.append(message)
+        self._relay(room, message)
+        self._send_peers(room)
+
     def _handle_client_gesture(self, ws: Any, payload: Dict[str, Any]) -> None:
         with self._lock:
             found = self._participant_for_ws(ws)
@@ -780,17 +831,7 @@ class ConnectRoomService:
                 )
                 return
             participant.seen_event_ids.append(event_id)
-            participant.last_gesture = {
-                "gesture_id": message["gesture_id"],
-                "symbol": message["symbol"],
-                "meaning": message["meaning"],
-                "kind": message["kind"],
-                "confidence": message["confidence"],
-                "has_replay": message["has_replay"],
-                "ts": message["ts"],
-            }
-            self._relay(room, message)
-            self._send_peers(room)
+            self._record_accepted_gesture(room, participant, message)
 
     # Public helper for the local engine fallback and transport-level tests.
     def push_gesture(self, client_id: str, payload: Dict[str, Any]) -> bool:
@@ -806,12 +847,7 @@ class ConnectRoomService:
                 if message is None:
                     return False
                 participant.seen_event_ids.append(event_id)
-                participant.last_gesture = {
-                    key: message[key]
-                    for key in ("gesture_id", "symbol", "meaning", "kind", "confidence", "has_replay", "ts")
-                }
-                self._relay(room, message)
-                self._send_peers(room)
+                self._record_accepted_gesture(room, participant, message)
                 return True
         return False
 
