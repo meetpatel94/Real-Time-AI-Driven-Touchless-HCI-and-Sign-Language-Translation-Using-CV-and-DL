@@ -11,9 +11,25 @@ from config import Config
 from core.connect.pose_dictionary import BUILTIN_GESTURE_DICTIONARY
 from core.custom_gestures.service import custom_gesture_service
 from services.connect_room_service import connect_room_service
+from services.runtime_capabilities import runtime_capabilities
 from services.state_service import global_state
 
 connect_bp = Blueprint("connect", __name__)
+
+_CONNECT_UNAVAILABLE = (
+    "Connect rooms require a persistent WebSocket relay and shared in-memory room state. "
+    "They are available in the local desktop runtime, not in this Vercel demo."
+)
+
+
+def _connect_unavailable_response():
+    response = jsonify({
+        "success": False,
+        "error": "persistent_websocket_required",
+        "message": _CONNECT_UNAVAILABLE,
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response, 409
 
 
 @connect_bp.route("/connect")
@@ -44,6 +60,8 @@ def connect_health():
             "service": "gestureforge-connect",
             "transport": "https" if request.is_secure else "http",
             "ws_path": Config.CONNECT_WS_PATH,
+            "available": runtime_capabilities.websocket_available,
+            "message": "" if runtime_capabilities.websocket_available else _CONNECT_UNAVAILABLE,
         }
     )
 
@@ -81,6 +99,8 @@ def create_connect_room():
     contains only an opaque WebSocket session token and public participant
     identity; the password and its hash never leave the service.
     """
+    if not runtime_capabilities.websocket_available:
+        return _connect_unavailable_response()
     body = _connect_json_body()
     result = connect_room_service.create_room(
         body.get("display_name", body.get("name")),
@@ -94,6 +114,8 @@ def create_connect_room():
 @connect_bp.route("/api/connect/join", methods=["POST"])
 def join_connect_room():
     """Authenticate a joiner without putting the room password on WebSocket."""
+    if not runtime_capabilities.websocket_available:
+        return _connect_unavailable_response()
     body = _connect_json_body()
     result = connect_room_service.join_room(
         body.get("code", body.get("room_code")),
@@ -107,6 +129,8 @@ def join_connect_room():
 @connect_bp.route("/api/connect/rooms/<code>/join", methods=["POST"])
 def join_connect_room_by_code(code):
     """Convenience alias that takes the room code in the path."""
+    if not runtime_capabilities.websocket_available:
+        return _connect_unavailable_response()
     body = _connect_json_body()
     result = connect_room_service.join_room(
         code,
@@ -123,6 +147,8 @@ def join_connect_room_by_code(code):
 @connect_bp.route("/api/connect/rooms/<code>", methods=["GET"])
 def connect_room_status(code):
     """Return safe authenticated room state; never return password material."""
+    if not runtime_capabilities.websocket_available:
+        return _connect_unavailable_response()
     result = connect_room_service.room_status(
         code,
         request.headers.get("X-Connect-Client-ID"),

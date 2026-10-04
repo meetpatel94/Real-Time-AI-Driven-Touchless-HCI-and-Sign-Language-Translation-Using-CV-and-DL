@@ -1,16 +1,7 @@
+# Vercel serverless runtime dependencies.
+# Computer-vision/model packages are intentionally kept in requirements-local.txt:
+# Vercel functions cannot own webcam hardware, persistent TensorFlow workers,
+# desktop automation, or the Flask-Sock WebSocket relay.
 Flask==3.0.2
-opencv-python==4.9.0.80
-mediapipe==0.10.11
-pyautogui==0.9.54
-numpy==1.26.4
-tensorflow>=2.15.0
-matplotlib>=3.8.0
-seaborn>=0.13.0
-pandas>=2.2.0
-scikit-learn>=1.4.0
-Pillow>=10.2.0
-deep-translator>=1.11.4
 pymongo>=4.6.0,<5.0.0
-
-# Real-time two-person Connect rooms (WebSocket relay on the Flask dev server)
-flask-sock==0.7.0
+deep-translator>=1.11.4

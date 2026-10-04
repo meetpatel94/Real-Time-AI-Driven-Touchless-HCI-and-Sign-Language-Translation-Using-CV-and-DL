@@ -48,6 +48,7 @@ from core.custom_gestures.gesture_analytics import (
     log_recognition_event,
 )
 from services.logging_service import logger
+from services.runtime_capabilities import runtime_capabilities
 
 
 def _utc_now() -> str:
@@ -230,6 +231,11 @@ class CustomGestureService:
     # Filesystem safety and metadata
     # ------------------------------------------------------------------
     def _ensure_base_dir(self) -> None:
+        # Vercel's deployment bundle is read-only. Read-only listing is still
+        # safe (and is useful for Connect mapping metadata), while every
+        # mutation is blocked by the route layer with a clear local-only state.
+        if runtime_capabilities.is_serverless:
+            return
         os.makedirs(self.base_dir, exist_ok=True)
 
     def _gesture_dir(self, gesture_id: Any) -> str:
@@ -373,6 +379,9 @@ class CustomGestureService:
                 return dict(self._cache)
             self._ensure_base_dir()
             cache: Dict[str, Dict[str, Any]] = {}
+            if not os.path.isdir(self.base_dir):
+                self._cache = cache
+                return dict(cache)
             for entry in sorted(os.listdir(self.base_dir)):
                 if entry.startswith(("_", ".")):
                     # Internal folders (e.g. "_learning") are never gestures.

@@ -11,7 +11,11 @@
     <div class="card">
         <h3>Live Camera Stream</h3>
         <div class="feed-container" style="margin-top: 1rem;">
+            {% if runtime.browser_camera_required %}
+            <video class="browser-camera-preview" data-browser-camera autoplay muted playsinline aria-label="Browser camera preview"></video>
+            {% else %}
             <img src="{{ url_for('camera.video_feed') }}" alt="Camera Feed">
+            {% endif %}
         </div>
     </div>
     <div class="card">

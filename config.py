@@ -19,9 +19,20 @@ def _env_text(names, default: str) -> str:
     return default
 
 
+def _serverless_environment() -> bool:
+    return (
+        os.environ.get("VERCEL", "").strip().lower() in {"1", "true", "yes", "on"}
+        or os.environ.get("DEPLOYMENT_TARGET", "").strip().lower() == "vercel"
+        or os.environ.get("GESTUREFORGE_SERVERLESS", "").strip().lower() in {"1", "true", "yes", "on"}
+    )
+
+
 class Config:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    SECRET_KEY = os.environ.get("SECRET_KEY", "gestureforge-ai-secret-key-2026")
+    # Production deployments must set SECRET_KEY.  A random process-local
+    # fallback keeps local demos/tests bootable without publishing a reusable
+    # default secret in source control.
+    SECRET_KEY = os.environ.get("SECRET_KEY") or os.urandom(32).hex()
     CAMERA_INDEX = 0
     FRAME_WIDTH = 640
     FRAME_HEIGHT = 480
@@ -149,8 +160,12 @@ class Config:
     # Human-adaptive persistence. The base model, A-Z dataset and webcam
     # frames remain local; only derived personalization documents use MongoDB.
     DEFAULT_PROFILE_ID = _env_text(("GESTUREFORGE_PROFILE_ID",), "local-user")
+    # Keep the convenient local MongoDB default for desktop development, but
+    # never make a Vercel function attempt a loopback database connection when
+    # no managed MongoDB URI was configured.
     MONGODB_URI = _env_text(
-        ("MONGODB_URI", "MONGO_URI"), "mongodb://127.0.0.1:27017"
+        ("MONGODB_URI", "MONGO_URI"),
+        "" if _serverless_environment() else "mongodb://127.0.0.1:27017",
     )
     MONGODB_DATABASE = _env_text(
         ("MONGODB_DATABASE", "MONGODB_DB_NAME", "MONGO_DB_NAME", "MONGO_DATABASE"),

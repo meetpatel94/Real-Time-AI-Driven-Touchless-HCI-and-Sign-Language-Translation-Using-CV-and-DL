@@ -4,6 +4,106 @@
 
 ---
 
+## Deploy on Vercel
+
+This repository is ready to deploy as a **Flask Python Serverless Function** without replacing the existing UI. Vercel imports the existing Flask app through `api/index.py`; `vercel.json` rewrites page and API requests to that entry point and packages the templates, static assets, trained model, and model metadata.
+
+### What the Vercel deployment does
+
+* Serves the existing Flask pages, navigation, CSS, JavaScript, static assets, REST APIs, model information/export, sentence completions, word suggestions, and translation endpoint.
+* Uses `navigator.mediaDevices.getUserMedia()` in the browser for the existing Overview, Recognition, Studio, and Custom Gesture camera panels. Camera frames are not sent to Vercel.
+* Keeps MongoDB optional. Set a managed MongoDB URI to persist profiles and phrase memory; without it the site still starts and clearly reports degraded persistence.
+* Shows an in-UI **Vercel demo mode** notice and returns useful `409` JSON responses for features that require a local camera process, TensorFlow, writable local storage, OS automation, or a persistent WebSocket.
+
+### Deploy step by step
+
+1. **Commit and push the deployment-ready changes to GitHub.** From the repository root:
+
+   ```bash
+   git status
+   git add app.py api/ config.py database/ routes/ services/ core/custom_gestures/ static/ templates/ \
+     requirements.txt requirements-local.txt vercel.json .env.example .gitignore README.md
+   git commit -m "Prepare Flask application for Vercel deployment"
+   git push origin HEAD
+   ```
+
+   If this is a new GitHub repository, create an empty repository on GitHub, add it as `origin`, and push your current branch before continuing.
+
+2. **Import the repository in Vercel.** Open [vercel.com/new](https://vercel.com/new), select the GitHub repository, and use these exact import settings:
+
+   | Vercel setting | Value |
+   | --- | --- |
+   | Root Directory | `.` (repository root) |
+   | Framework Preset | `Other` (or leave auto-detected) |
+   | Build Command | Leave blank / use Vercel default |
+   | Output Directory | Leave blank |
+   | Install Command | Leave blank / use Vercel default (`pip install -r requirements.txt`) |
+   | Node.js version | Not required for this Flask deployment |
+
+   Do **not** set an SPA output directory or a Node build command. `api/index.py` is the Python entry point and `vercel.json` already defines the application rewrite.
+
+3. **Add environment variables in Vercel → Project → Settings → Environment Variables.** Add them for **Production** (and Preview too if desired):
+
+   ```text
+   SECRET_KEY=<a unique long random value>
+   MONGODB_URI=<optional MongoDB Atlas connection string>
+   MONGODB_DATABASE=gestureforge
+   ```
+
+   Generate a suitable `SECRET_KEY` locally with:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```
+
+   `MONGODB_URI` and `MONGODB_DATABASE` are optional. If no MongoDB URI is supplied, do not add an empty malformed value—the application will start with persistence marked offline. Optional Mongo tuning variables are documented in `.env.example`.
+
+4. **Click Deploy.** When the deployment completes, Vercel provides a URL such as `https://your-project.vercel.app`. Future pushes to the connected branch automatically create a new deployment.
+
+5. **Verify the live deployment.** Open:
+
+   ```text
+   https://your-project.vercel.app/api/health
+   https://your-project.vercel.app/overview
+   https://your-project.vercel.app/sign-recognition
+   https://your-project.vercel.app/sign-language-studio
+   https://your-project.vercel.app/sign-alphabet
+   https://your-project.vercel.app/custom-gestures
+   https://your-project.vercel.app/connect
+   ```
+
+   `/api/health` should return `"ok": true` and `"deployment": "Vercel serverless demo"`. On camera pages, click **CAMERA OFF** in the sidebar, allow the HTTPS camera permission, and confirm the browser-local preview appears.
+
+### Vercel troubleshooting
+
+| Symptom | Resolution |
+| --- | --- |
+| `FUNCTION_INVOCATION_FAILED` / import error | Confirm Vercel is using the repository root and has not overridden the Install Command. It must install the lean `requirements.txt`, not `requirements-local.txt`. |
+| Templates or CSS are missing | Keep `vercel.json` in the repository root. Its `includeFiles` keeps `templates/` and `static/` with `api/index.py`. |
+| Camera permission does not appear | Open the actual `https://` Vercel URL (not an embedded insecure browser), then allow Camera in browser site settings. Webcam frames stay in the browser. |
+| Profile storage says OFFLINE | Add a reachable Atlas `MONGODB_URI` and optionally `MONGODB_DATABASE`; check Atlas network access and credentials. The rest of the app remains usable without MongoDB. |
+| Connect says local-runtime only | This is expected on Vercel: persistent Flask-Sock WebSockets and process-local rooms need the local desktop runtime. |
+| Sign recognition says browser/local AI only | This is expected on Vercel. TensorFlow/OpenCV/MediaPipe server inference is intentionally not installed in the serverless function. |
+
+### Vercel feature limits
+
+| Works on Vercel | Requires local desktop runtime (`requirements-local.txt`) |
+| --- | --- |
+| Existing Flask UI, routes, styling, navigation, browser camera preview, Studio text tools, suggestions, translation, model metadata/export, optional MongoDB profiles | OpenCV server camera/MJPEG stream, MediaPipe + TensorFlow A–Z inference, dataset capture, model training, Custom Gesture capture/editing, adaptive calibration from live frames, PyAutoGUI cursor/click/scroll control, global hand scroll, Flask-Sock Connect rooms |
+
+The original desktop functionality is retained rather than deleted. To run the complete local experience:
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+pip install -r requirements-local.txt
+python app.py
+```
+
+---
+
 ## 🌟 Key Features
 
 * **Global Air Gestures (OS-Level Control):**
@@ -179,7 +279,7 @@ privacy model is unchanged.
 4. **Start GestureForge** on the PC:
 
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements-local.txt
    python app.py
    ```
 

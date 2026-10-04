@@ -81,7 +81,11 @@
                     </div>
                 </div>
                 <div class="feed-container custom-feed-container">
+                    {% if runtime.browser_camera_required %}
+                    <video class="browser-camera-preview" data-browser-camera autoplay muted playsinline aria-label="Browser camera preview"></video>
+                    {% else %}
                     <img src="{{ url_for('camera.video_feed') }}" alt="Custom Gesture Camera Stream">
+                    {% endif %}
                 </div>
                 <div class="status-pill-strip custom-status-strip">
                     <div><span>MODE:</span> <strong id="custom-mode-value">Idle</strong></div>

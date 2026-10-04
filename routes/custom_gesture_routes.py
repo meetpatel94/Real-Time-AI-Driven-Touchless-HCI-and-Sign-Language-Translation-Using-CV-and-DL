@@ -1,12 +1,27 @@
 """Routes for the isolated Custom Gesture Library."""
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from core.custom_gestures.service import custom_gesture_service, sanitize_gesture_name
+from services.runtime_capabilities import runtime_capabilities
 from services.state_service import global_state
 
 
 custom_gesture_bp = Blueprint("custom_gestures", __name__)
+
+
+def _custom_runtime_available() -> bool:
+    # Unit tests inject a temporary filesystem-backed service. Production
+    # Vercel requests never set TESTING and remain safely read-only.
+    return runtime_capabilities.background_workers_available or bool(current_app.testing)
+
+
+def _local_runtime_only_response():
+    return jsonify({
+        "success": False,
+        "error": "Custom gesture capture and editing need the local camera, MediaPipe worker and writable local storage. They are unavailable in the Vercel demo.",
+        "code": "local_runtime_only",
+    }), 409
 
 
 def _payload():
@@ -45,6 +60,8 @@ def get_custom_gesture(gesture_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/capture/start", methods=["POST"])
 def start_custom_gesture_capture():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     payload = _payload()
     name = payload.get("gesture_name", payload.get("name", ""))
     target = payload.get("target_samples", payload.get("number_of_samples", payload.get("samples", None)))
@@ -64,6 +81,8 @@ def start_custom_gesture_capture():
 
 @custom_gesture_bp.route("/api/custom-gestures/capture/stop", methods=["POST"])
 def stop_custom_gesture_capture():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     return jsonify(custom_gesture_service.stop_capture())
 
 
@@ -74,11 +93,15 @@ def custom_gesture_capture_status():
 
 @custom_gesture_bp.route("/api/custom-gestures/live/start", methods=["POST"])
 def start_custom_gesture_live():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     return _json_result(custom_gesture_service.start_live_recognition())
 
 
 @custom_gesture_bp.route("/api/custom-gestures/test/start", methods=["POST"])
 def start_custom_gesture_test():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     payload = _payload()
     gesture_id = payload.get("gesture_id", payload.get("id", ""))
     try:
@@ -95,11 +118,15 @@ def custom_gesture_recognition_status():
 
 @custom_gesture_bp.route("/api/custom-gestures/recognition/stop", methods=["POST"])
 def stop_custom_gesture_recognition():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     return jsonify(custom_gesture_service.stop_recognition())
 
 
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>", methods=["PATCH", "PUT"])
 def update_custom_gesture(gesture_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     try:
         result = custom_gesture_service.update_gesture(gesture_id, _payload())
     except ValueError as exc:
@@ -109,6 +136,8 @@ def update_custom_gesture(gesture_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/toggle", methods=["POST"])
 def toggle_custom_gesture(gesture_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     payload = _payload()
     enabled = payload.get("enabled") if "enabled" in payload else None
     try:
@@ -120,6 +149,8 @@ def toggle_custom_gesture(gesture_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>", methods=["DELETE"])
 def delete_custom_gesture(gesture_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     try:
         sanitize_gesture_name(gesture_id)
         result = custom_gesture_service.delete_gesture(gesture_id)
@@ -138,6 +169,8 @@ def custom_gesture_learning_status():
 
 @custom_gesture_bp.route("/api/custom-gestures/learning/candidates/<candidate_id>/learn", methods=["POST"])
 def learn_custom_gesture_candidate(candidate_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     result = custom_gesture_service.prepare_candidate_learning(candidate_id)
     if not result.get("success"):
         status = 404 if "no longer" in str(result.get("error", "")).lower() else 400
@@ -147,6 +180,8 @@ def learn_custom_gesture_candidate(candidate_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/learning/candidates/<candidate_id>/ignore", methods=["POST"])
 def ignore_custom_gesture_candidate(candidate_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     result = custom_gesture_service.ignore_candidate(candidate_id)
     if not result.get("success"):
         status = 404 if "no longer" in str(result.get("error", "")).lower() else 400
@@ -156,6 +191,8 @@ def ignore_custom_gesture_candidate(candidate_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/corrections", methods=["POST"])
 def record_custom_gesture_correction():
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     payload = _payload()
     predicted = payload.get("predicted_gesture_id", payload.get("predicted", ""))
     correct = payload.get("correct_gesture_id", payload.get("correct", ""))
@@ -188,6 +225,8 @@ def custom_gesture_evolution(gesture_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/variations/accept", methods=["POST"])
 def accept_custom_gesture_variations(gesture_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     try:
         result = custom_gesture_service.accept_pending_variations(gesture_id)
     except ValueError as exc:
@@ -197,6 +236,8 @@ def accept_custom_gesture_variations(gesture_id):
 
 @custom_gesture_bp.route("/api/custom-gestures/<gesture_id>/variations/ignore", methods=["POST"])
 def ignore_custom_gesture_variations(gesture_id):
+    if not _custom_runtime_available():
+        return _local_runtime_only_response()
     try:
         result = custom_gesture_service.discard_pending_variations(gesture_id)
     except ValueError as exc:

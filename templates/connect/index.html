@@ -9,6 +9,15 @@
 
 {% block content %}
 <div class="connect-page">
+    {% if not runtime.websocket_available %}
+    <section class="deployment-notice" role="note">
+        <span class="deployment-notice-icon" aria-hidden="true">🔌</span>
+        <div>
+            <strong>Connect rooms are local-runtime only</strong>
+            <p>Two-person rooms use a persistent Flask WebSocket relay, which Vercel serverless functions cannot host reliably. The Connect UI and browser-local recognition code remain in the project; run the local desktop runtime to use private rooms.</p>
+        </div>
+    </section>
+    {% endif %}
     <!-- ============ LOBBY: create / join ============ -->
     <section id="lobby-view" class="connect-lobby">
         <div class="card connect-intro-card">
