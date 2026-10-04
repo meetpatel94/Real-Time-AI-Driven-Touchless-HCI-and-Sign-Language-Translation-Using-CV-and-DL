@@ -1,13 +1,7 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
-    }
-  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/index.py": {
+    "app.py": {
       "includeFiles": "{templates/**,static/**,models/sign_alphabet/**,training/status/**,data/custom_gestures/**}"
     }
   }
