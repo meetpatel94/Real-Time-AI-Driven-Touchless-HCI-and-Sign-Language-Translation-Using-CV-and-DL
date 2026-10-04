@@ -29,7 +29,11 @@
             
             <div class="compact-camera-wrapper">
                 <div class="camera-placeholder-box">
+                    {% if runtime.browser_camera_required %}
+                    <video class="browser-camera-preview" data-browser-camera autoplay muted playsinline aria-label="Browser camera preview"></video>
+                    {% else %}
                     <img src="{{ url_for('camera.video_feed') }}" alt="Camera Stream" onerror="this.style.display='none'; document.getElementById('cam-fallback').style.display='flex';">
+                    {% endif %}
                     <div id="cam-fallback" class="camera-placeholder-content" style="display: none;">
                         <span class="camera-icon">📷</span>
                         <span class="camera-text">LIVE CAMERA</span>

@@ -1736,12 +1736,38 @@
     domReady(function () {
         document.body.classList.add('connect-local-mode');
         cacheDom();
+        fitSmallScreen();
+
+        // Vercel functions do not provide a durable WebSocket process or shared
+        // in-memory room state. Do not attempt an upgrade/reconnect loop there;
+        // leave the existing UI visible with an actionable local-runtime state.
+        if (window.GestureForgeRuntime && window.GestureForgeRuntime.websocketAvailable === false) {
+            [el.btnCreateRoom, el.btnJoinRoom].forEach(function (button) {
+                if (button) {
+                    button.disabled = true;
+                    button.title = 'Connect rooms require the local desktop runtime.';
+                }
+            });
+            if (el.createError) {
+                el.createError.textContent = 'Connect rooms require a persistent WebSocket relay and are available when running GestureForge locally.';
+                el.createError.hidden = false;
+            }
+            if (el.joinError) {
+                el.joinError.textContent = 'Connect rooms are unavailable in this Vercel deployment.';
+                el.joinError.hidden = false;
+            }
+            loadMappings();
+            setConnPill('disconnected');
+            setOwnDeviceBadges();
+            restoreCameraPlaceholderHint();
+            return;
+        }
+
         bind();
         loadMappings();
         setConnPill('idle');
         setOwnDeviceBadges();
         conn.clientId = storedClientId();
-        fitSmallScreen();
         restoreCameraPlaceholderHint();
         maybeAutoResume();
         conn.recognitionFrame = requestAnimationFrame(recognitionLoop);

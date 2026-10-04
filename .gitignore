@@ -36,6 +36,7 @@ Thumbs.db
 desktop.ini
 
 # --- Build, Distribution & Packaging ---
+.vercel/
 build/
 dist/
 *.egg-info/

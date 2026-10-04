@@ -49,7 +49,7 @@ class SignAlphabetManager {
             const card = document.createElement('div');
             card.className = 'class-card';
             card.innerHTML = `
-                <img class="class-preview-img" src="/sign-alphabet/class-preview/${letter}" alt="${letter}" onerror="this.src='/static/assets/placeholder.png';">
+                <img class="class-preview-img" src="/sign-alphabet/class-preview/${letter}" alt="${letter}" onerror="this.src='/static/assets/placeholder.svg';">
                 <span class="class-letter">${letter}</span>
                 <span class="class-count">${count} imgs</span>
             `;
@@ -66,8 +66,10 @@ class SignAlphabetManager {
             const exportBtn = document.getElementById('btn-export-model');
 
             if (data.model_exists) {
-                statusElem.innerText = `TRAINED (${data.model_size_mb} MB)`;
-                statusElem.style.color = 'var(--accent-green)';
+                statusElem.innerText = data.server_inference_available
+                    ? `TRAINED (${data.model_size_mb} MB)`
+                    : `PACKAGED · LOCAL AI (${data.model_size_mb} MB)`;
+                statusElem.style.color = data.server_inference_available ? 'var(--accent-green)' : 'var(--accent-blue)';
                 exportBtn.style.pointerEvents = 'auto';
                 exportBtn.style.opacity = '1';
             } else {
@@ -136,6 +138,10 @@ class SignAlphabetManager {
 
             if (statusText) statusText.innerText = state.status;
             if (epochText) epochText.innerText = `Epoch ${state.current_epoch} / ${state.total_epochs}`;
+            if (state.training_available === false && btnStart) {
+                btnStart.disabled = true;
+                btnStart.title = state.error_message || 'Training is available in the local desktop runtime.';
+            }
             if (progressBar) progressBar.style.width = `${state.progress_percent}%`;
 
             document.getElementById('metric-train-acc').innerText = `${state.train_accuracy}%`;

@@ -25,6 +25,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 from config import Config
 from core.connect.detector import connect_detector
 from services.logging_service import logger
+from services.runtime_capabilities import runtime_capabilities
 
 _ROLE_CREATOR = "creator"
 _ROLE_JOINER = "joiner"
@@ -291,11 +292,18 @@ class ConnectRoomService:
         self.max_age = float(Config.CONNECT_ROOM_MAX_AGE_SECONDS)
 
         connect_detector.set_sink(self._detector_sink)
-        self._sweep_thread = threading.Thread(
-            target=self._sweep_loop, name="connect-room-sweep", daemon=True
-        )
-        self._sweep_thread.start()
-        logger.info("Connect room relay initialized (independent participant streams).")
+        self._sweep_thread = None
+        if runtime_capabilities.persistent_memory_available:
+            self._sweep_thread = threading.Thread(
+                target=self._sweep_loop, name="connect-room-sweep", daemon=True
+            )
+            self._sweep_thread.start()
+            logger.info("Connect room relay initialized (independent participant streams).")
+        else:
+            # A Vercel invocation cannot own a durable room or WebSocket. Keep
+            # the service importable for read-only mapping APIs, but never
+            # create a background process that implies real-time availability.
+            logger.info("Connect room relay is disabled in serverless mode.")
 
     # ------------------------------------------------------------------
     # Compatibility property for the old transport tests only.

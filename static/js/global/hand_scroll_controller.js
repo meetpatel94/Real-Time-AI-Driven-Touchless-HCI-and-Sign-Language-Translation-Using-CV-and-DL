@@ -33,6 +33,10 @@ class GlobalHandScrollController {
     }
 
     start() {
+        // A Vercel function has no server-side MediaPipe loop to publish hand
+        // scroll events. Avoid needless polling; the sidebar explains that
+        // browser preview is still available while gesture execution is local.
+        if (window.GestureForgeRuntime && window.GestureForgeRuntime.isServerless) return;
         // Establish the current sequence as a baseline.  A page opened after a
         // hand motion must not replay a scroll event that happened elsewhere.
         this.poll();

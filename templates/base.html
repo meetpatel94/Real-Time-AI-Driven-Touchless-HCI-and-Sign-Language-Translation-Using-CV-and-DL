@@ -13,7 +13,7 @@
     <!-- Loaded last so shared responsive rules can safely adapt every module. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
-<body>
+<body data-serverless="{{ 'true' if runtime.is_serverless else 'false' }}">
     <div id="app-container">
         <!-- MOBILE NAVIGATION SCRIM -->
         <div id="mobile-nav-scrim" aria-hidden="true"></div>
@@ -39,6 +39,12 @@
                             <a href="{{ url_for('drawing.drawing') }}">
                                 <span class="nav-icon">🎨</span>
                                 <span class="nav-label">Air Drawing</span>
+                            </a>
+                        </li>
+                        <li class="nav-item Air-Mouse" data-tooltip="Air Mouse">
+                            <a href="{{ url_for('mouse.mouse') }}">
+                                <span class="nav-icon">🖱️</span>
+                                <span class="nav-label">Air Mouse</span>
                             </a>
                         </li>
                         <li class="nav-item Sign-Alphabet" data-tooltip="Sign Alphabet">
@@ -153,6 +159,15 @@
             </header>
 
             <main id="content-area">
+                {% if runtime.is_serverless %}
+                <section class="deployment-notice" role="status" aria-live="polite">
+                    <span class="deployment-notice-icon" aria-hidden="true">☁️</span>
+                    <div>
+                        <strong>Vercel demo mode</strong>
+                        <p>Your camera preview runs directly in this browser. Server-side sign inference, model training, custom-gesture capture, system cursor control, and persistent Connect rooms require the local desktop runtime.</p>
+                    </div>
+                </section>
+                {% endif %}
                 {% block content %}{% endblock %}
             </main>
         </div>
@@ -268,7 +283,21 @@
         </div>
     </section>
 
+    <script>
+        window.GestureForgeRuntime = {{ {
+            'isServerless': runtime.is_serverless,
+            'browserCameraRequired': runtime.browser_camera_required,
+            'serverCameraAvailable': runtime.server_camera_available,
+            'serverAiAvailable': runtime.server_ai_available,
+            'backgroundWorkersAvailable': runtime.background_workers_available,
+            'systemControlAvailable': runtime.system_control_available,
+            'websocketAvailable': runtime.websocket_available,
+            'persistentMemoryAvailable': runtime.persistent_memory_available,
+            'deploymentLabel': runtime.deployment_label
+        } | tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/global/navigation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global/browser_camera.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/hand_scroll_controller.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/state_client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global/gesture_client.js') }}"></script>

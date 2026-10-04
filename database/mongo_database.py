@@ -83,6 +83,14 @@ class MongoDatabase:
             return self._last_error
 
     def _connect(self):
+        # On Vercel MongoDB is optional. If the deployment has no managed URI,
+        # fail closed immediately instead of repeatedly probing 127.0.0.1.
+        if not str(self.uri or "").strip():
+            with self._lock:
+                if not self._last_failure_at or time.monotonic() - self._last_failure_at >= 2.0:
+                    self._mark_unavailable("MONGODB_URI is not configured")
+            return None
+
         if self.client_factory is None:
             with self._lock:
                 if self._last_failure_at and time.monotonic() - self._last_failure_at < 2.0:

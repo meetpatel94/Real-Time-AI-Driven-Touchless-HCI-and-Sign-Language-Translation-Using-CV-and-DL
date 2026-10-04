@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
-from core.gestures.gesture_engine import gesture_engine
+from services.runtime_capabilities import runtime_capabilities
 from services.adaptive_intent_service import adaptive_intent_service
 from services.interaction_history_service import interaction_history_service
 from services.personalization_service import personalization_service
@@ -10,6 +10,21 @@ from services.user_profile_service import user_profile_service
 
 
 personalization_bp = Blueprint("personalization", __name__)
+
+
+def _reset_adaptive_state():
+    if not runtime_capabilities.server_ai_available:
+        return
+    from core.gestures.gesture_engine import gesture_engine
+    gesture_engine.reset_adaptive_state()
+
+
+def _local_camera_required_response():
+    return jsonify({
+        "success": False,
+        "error": "Gesture calibration needs the local camera and MediaPipe runtime. It is unavailable in the Vercel demo.",
+        "code": "local_runtime_only",
+    }), 409
 
 
 def _requested_profile_id():
@@ -22,7 +37,7 @@ def _profile_id():
     if previous_profile_id != profile.user_id:
         # Do not let a profile switch reuse another user's live pose or
         # temporal state while the camera thread is still running.
-        gesture_engine.reset_adaptive_state()
+        _reset_adaptive_state()
     # Keep all explicit personalization requests off the camera hot path by
     # priming the user-scoped snapshots at the HTTP boundary.
     personalization_service.preload_learning_data(profile.user_id)
@@ -73,6 +88,8 @@ def get_calibration():
 
 @personalization_bp.route("/api/personalization/calibration/start", methods=["POST"])
 def start_calibration():
+    if not runtime_capabilities.server_ai_available:
+        return _local_camera_required_response()
     profile_id = _profile_id()
     payload = _payload()
     target = payload.get("target", payload.get("target_label", payload.get("gesture")))
@@ -87,6 +104,8 @@ def start_calibration():
 
 @personalization_bp.route("/api/personalization/calibration/sample", methods=["POST"])
 def capture_calibration_sample():
+    if not runtime_capabilities.server_ai_available:
+        return _local_camera_required_response()
     profile_id = _profile_id()
     payload = _payload()
     result = personalization_service.request_sample(
@@ -98,6 +117,8 @@ def capture_calibration_sample():
 
 @personalization_bp.route("/api/personalization/calibration/complete", methods=["POST"])
 def complete_calibration():
+    if not runtime_capabilities.server_ai_available:
+        return _local_camera_required_response()
     profile_id = _profile_id()
     payload = _payload()
     result = personalization_service.complete_calibration(

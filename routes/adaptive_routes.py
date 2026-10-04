@@ -2,8 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
-from core.gestures.gesture_engine import gesture_engine
-from core.mouse.scroll_controller import scroll_controller
+from services.runtime_capabilities import runtime_capabilities
 from services.adaptive_intent_service import adaptive_intent_service
 from services.adaptive_runtime_service import adaptive_runtime_service
 from services.interaction_history_service import interaction_history_service
@@ -12,6 +11,14 @@ from services.user_profile_service import user_profile_service
 
 
 adaptive_bp = Blueprint("adaptive", __name__)
+
+
+def _reset_adaptive_state():
+    """Reset local camera-derived state only when a desktop engine exists."""
+    if not runtime_capabilities.server_ai_available:
+        return
+    from core.gestures.gesture_engine import gesture_engine
+    gesture_engine.reset_adaptive_state()
 
 
 def _requested_profile_id():
@@ -24,7 +31,7 @@ def _activate_profile():
     if previous_profile_id != profile.user_id:
         # A profile switch must not inherit another user's temporal candidate,
         # latest pose, or adaptive runtime snapshot.
-        gesture_engine.reset_adaptive_state()
+        _reset_adaptive_state()
     # Load user-owned matching data on the request path when the active profile
     # changes, never from the camera frame loop.
     personalization_service.preload_learning_data(profile.user_id)
@@ -33,7 +40,11 @@ def _activate_profile():
 
 
 def _apply_runtime_preferences(profile):
-    """Apply saved preferences through existing controllers, not duplicate logic."""
+    """Apply preferences to local controllers only when they exist."""
+    if not runtime_capabilities.system_control_available:
+        return
+    from core.gestures.gesture_engine import gesture_engine
+    from core.mouse.scroll_controller import scroll_controller
     gesture_engine.mapper.set_sensitivity(profile.cursor_sensitivity)
     scroll_controller.set_sensitivity(profile.scroll_sensitivity)
 
@@ -61,7 +72,7 @@ def update_profile():
 
     profile = user_profile_service.update_profile(profile_id, changes)
     if previous_profile_id != profile.user_id:
-        gesture_engine.reset_adaptive_state()
+        _reset_adaptive_state()
     else:
         adaptive_intent_service.reset()
     _apply_runtime_preferences(profile)
@@ -75,7 +86,7 @@ def reset_profile():
     previous_profile_id = user_profile_service.active_profile_id
     profile = user_profile_service.reset_profile(_requested_profile_id())
     if previous_profile_id != profile.user_id:
-        gesture_engine.reset_adaptive_state()
+        _reset_adaptive_state()
     else:
         adaptive_intent_service.reset()
     _apply_runtime_preferences(profile)
