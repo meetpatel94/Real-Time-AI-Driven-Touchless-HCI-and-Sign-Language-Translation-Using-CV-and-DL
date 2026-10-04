@@ -8,13 +8,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "includeFiles": [
-        "templates/**",
-        "static/**",
-        "models/sign_alphabet/**",
-        "training/status/**",
-        "data/custom_gestures/**"
-      ]
+      "includeFiles": "{templates/**,static/**,models/sign_alphabet/**,training/status/**,data/custom_gestures/**}"
     }
   }
 }
